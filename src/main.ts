@@ -8,6 +8,19 @@ async function bootstrap() {
 
   app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER));
 
+  app.setGlobalPrefix('api/v1');
+
+  app.enableCors({
+    origin: [
+      'http://localhost:8100',
+      'http://localhost:4200',
+      'http://localhost:3000',
+    ],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+  });
+
   const configService = app.get(ConfigService);
 
   const port = configService.get<number>('port') || 3000;
@@ -20,6 +33,7 @@ async function bootstrap() {
   logger.log('🚀 NextStep AI API Started');
   logger.log(`📦 Environment: ${nodeEnv}`);
   logger.log(`🌐 Port: ${port}`);
+  logger.log(`🔗 Base URL: http://localhost:${port}/api/v1`);
   logger.log('🍃 MongoDB Connected');
 }
 
