@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import bcrypt from 'bcrypt';
 
+import jwtConfig from '../../config/jwt.config';
+
 import { MESSAGES } from '../../common/constants';
 import {
   BadRequestError,
@@ -127,11 +129,13 @@ export class AuthService {
       };
 
       const accessToken = await this.jwtService.signAsync(payload, {
-        expiresIn: '15m',
+        secret: jwtConfig().jwtSecret,
+        expiresIn: jwtConfig().jwtExpiresIn as any,
       });
 
       const refreshToken = await this.jwtService.signAsync(payload, {
-        expiresIn: '7d',
+        secret: jwtConfig().jwtRefreshSecret,
+        expiresIn: jwtConfig().jwtRefreshExpiresIn as any,
       });
 
       const updatedUser = await this.userService.updateUser(

@@ -16,6 +16,7 @@ import { LoggerModule } from './common/logger/logger.module';
 import { AuthMiddleware } from './common/middleware/auth.middleware';
 
 import { AuthModule } from './modules/auth/auth.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -36,13 +37,21 @@ import { AuthModule } from './modules/auth/auth.module';
     LoggerModule,
 
     AuthModule,
+    DashboardModule,
   ],
 })
+
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(AuthMiddleware).forRoutes({
-      path: 'auth/logout',
-      method: RequestMethod.POST,
-    });
+    consumer.apply(AuthMiddleware).forRoutes(
+      {
+        path: 'auth/logout',
+        method: RequestMethod.POST,
+      },
+      {
+        path: 'dashboard/overview',
+        method: RequestMethod.GET,
+      },
+    );
   }
 }
