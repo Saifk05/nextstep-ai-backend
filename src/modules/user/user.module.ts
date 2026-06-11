@@ -4,6 +4,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { User, UserSchema } from './user.model';
 import { UserController } from './user.controller';
 import { UserService } from './user.service';
+import { CloudinaryModule } from '../../common/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -13,9 +14,10 @@ import { UserService } from './user.service';
         schema: UserSchema,
       },
     ]),
+    CloudinaryModule,
   ],
   controllers: [UserController],
   providers: [UserService],
-  exports: [UserService],
+  exports: [MongooseModule, UserService],
 })
 export class UserModule {}

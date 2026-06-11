@@ -46,31 +46,35 @@ import { UserModule } from './modules/user/user.module';
 
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(AuthMiddleware).forRoutes(
-      {
-        path: 'auth/logout',
-        method: RequestMethod.POST,
-      },
-      {
-        path: 'dashboard/overview',
-        method: RequestMethod.GET,
-      },
-      {
-        path: 'users/profile',
-        method: RequestMethod.GET,
-      },
-      {
-        path: 'users/profile',
-        method: RequestMethod.PATCH,
-      },
-      {
-        path: 'users/address/suggestions',
-        method: RequestMethod.GET,
-      },
-      {
-        path: 'users/address',
-        method: RequestMethod.PATCH,
-      },
-    );
-  }
+  consumer.apply(AuthMiddleware).forRoutes(
+    {
+      path: 'auth/logout',
+      method: RequestMethod.POST,
+    },
+    {
+      path: 'dashboard/overview',
+      method: RequestMethod.GET,
+    },
+    {
+      path: 'users/profile',
+      method: RequestMethod.GET,
+    },
+    {
+      path: 'users/profile',
+      method: RequestMethod.PATCH,
+    },
+    {
+      path: 'users/profile-picture',
+      method: RequestMethod.PATCH,
+    },
+    {
+      path: 'users/address/suggestions',
+      method: RequestMethod.GET,
+    },
+    {
+      path: 'users/address',
+      method: RequestMethod.PATCH,
+    },
+  );
+}
 }

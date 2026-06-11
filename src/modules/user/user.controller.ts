@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -6,8 +7,12 @@ import {
   Query,
   Req,
   Res,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request, Response } from 'express';
+import { memoryStorage } from 'multer';
 
 import { MESSAGES } from '../../common/constants';
 import {
@@ -62,10 +67,7 @@ export class UserController {
       throw new UnauthenticatedError(MESSAGES.UNAUTHORIZED);
     }
 
-    const updatedUser = await this.userService.updateProfile(
-      userId,
-      body,
-    );
+    const updatedUser = await this.userService.updateProfile(userId, body);
 
     if (!updatedUser) {
       throw new BadRequestError(MESSAGES.USER_NOT_FOUND);
@@ -74,6 +76,61 @@ export class UserController {
     return res.status(200).json({
       success: true,
       message: MESSAGES.USER_UPDATED_SUCCESSFULLY,
+      data: updatedUser,
+    });
+  }
+
+  @Patch('profile-picture')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: {
+        fileSize: 5 * 1024 * 1024,
+      },
+      fileFilter: (req, file, callback) => {
+        const allowedMimeTypes = [
+          'image/jpeg',
+          'image/jpg',
+          'image/png',
+          'image/webp',
+        ];
+
+        if (!allowedMimeTypes.includes(file.mimetype)) {
+          return callback(
+            new BadRequestException(
+              'Only image files are allowed. Supported formats: jpg, jpeg, png, webp',
+            ),
+            false,
+          );
+        }
+
+        callback(null, true);
+      },
+    }),
+  )
+  async updateProfilePicture(
+    @Req() req: AuthRequest,
+    @UploadedFile() file: Express.Multer.File,
+    @Res() res: Response,
+  ) {
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      throw new UnauthenticatedError(MESSAGES.UNAUTHORIZED);
+    }
+
+    if (!file) {
+      throw new BadRequestException('Profile picture file is required');
+    }
+
+    const updatedUser = await this.userService.updateProfilePicture(
+      userId,
+      file,
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Profile picture updated successfully',
       data: updatedUser,
     });
   }
@@ -90,8 +147,7 @@ export class UserController {
       throw new UnauthenticatedError(MESSAGES.UNAUTHORIZED);
     }
 
-    const suggestions =
-      await this.userService.getAddressSuggestions(query);
+    const suggestions = await this.userService.getAddressSuggestions(query);
 
     return res.status(200).json({
       success: true,
@@ -112,10 +168,7 @@ export class UserController {
       throw new UnauthenticatedError(MESSAGES.UNAUTHORIZED);
     }
 
-    const updatedUser = await this.userService.updateAddress(
-      userId,
-      body,
-    );
+    const updatedUser = await this.userService.updateAddress(userId, body);
 
     if (!updatedUser) {
       throw new BadRequestError(MESSAGES.USER_NOT_FOUND);

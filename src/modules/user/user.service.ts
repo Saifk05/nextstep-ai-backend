@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { CloudinaryService } from '../../common/cloudinary/cloudinary.service';
 
 import { BadRequestError } from '../../common/errors';
 import { User, UserDocument, UserStatus } from './user.model';
@@ -18,6 +20,7 @@ export class UserService {
   constructor(
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+    private readonly cloudinaryService: CloudinaryService,
   ) {}
 
   async createUser(request: CreateUserRequest): Promise<UserDocument> {
@@ -208,6 +211,26 @@ export class UserService {
   if (!user) {
     return null;
   }
+
+  return this.toProfileResponse(user);
+}
+
+    async updateProfilePicture(userId: string, file: Express.Multer.File) {
+  if (!file) {
+    throw new BadRequestException('Profile picture file is required');
+  }
+
+  const user = await this.userModel.findById(userId);
+
+  if (!user) {
+    throw new NotFoundException('User not found');
+  }
+
+  const uploadedImage = await this.cloudinaryService.uploadProfileImage(file);
+
+  user.profilePicture = uploadedImage.secure_url;
+
+  await user.save();
 
   return this.toProfileResponse(user);
 }
