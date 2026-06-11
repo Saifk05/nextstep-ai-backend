@@ -192,24 +192,23 @@ export class UserService {
   }
 
   async updateAddress(userId: string, address: any) {
-    const user = await this.updateById(userId, {
-      address: {
-        label: address.label || 'Home',
-        line1: address.line1,
-        line2: address.line2,
-        city: address.city,
-        state: address.state,
-        country: address.country || 'India',
-        pincode: address.pincode,
-        latitude: address.latitude,
-        longitude: address.longitude,
-      },
-    });
-
-    if (!user) {
-      return null;
-    }
-
-    return this.toProfileResponse(user);
+  if (!address?.placeId || !address?.description) {
+    throw new BadRequestError('Invalid address selected');
   }
+
+  const user = await this.updateById(userId, {
+    address: {
+      placeId: address.placeId,
+      description: address.description,
+      mainText: address.mainText || address.description,
+      secondaryText: address.secondaryText || '',
+    },
+  });
+
+  if (!user) {
+    return null;
+  }
+
+  return this.toProfileResponse(user);
+}
 }

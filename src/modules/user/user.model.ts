@@ -66,37 +66,20 @@ export class User {
 
   @Prop({
     type: {
-      label: { type: String },
-
-      line1: { type: String },
-      line2: { type: String },
-
-      city: { type: String },
-      state: { type: String },
-      country: { type: String },
-
-      pincode: { type: String },
-
-      latitude: { type: Number },
-      longitude: { type: Number },
+      placeId: { type: String, trim: true },
+      description: { type: String, trim: true },
+      mainText: { type: String, trim: true },
+      secondaryText: { type: String, trim: true },
     },
-    default: undefined,
+    default: null,
+    _id: false,
   })
   address?: {
-    label?: string;
-
-    line1?: string;
-    line2?: string;
-
-    city?: string;
-    state?: string;
-    country?: string;
-
-    pincode?: string;
-
-    latitude?: number;
-    longitude?: number;
-  };
+    placeId?: string;
+    description?: string;
+    mainText?: string;
+    secondaryText?: string;
+  } | null;
 
   @Prop({
     type: {
