@@ -39,4 +39,15 @@ export class AuthController {
       data: result.data,
     });
   }
+
+  @Post('refresh-token')
+  async refreshToken(@Req() req: Request, @Res() res: Response) {
+    const result = await this.authService.refreshToken(req.body);
+
+    return res.status(200).json({
+        success: true,
+        message: result.message,
+        data: result.data,
+    });
+  }
 }

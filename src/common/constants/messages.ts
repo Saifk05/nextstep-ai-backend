@@ -45,9 +45,11 @@ export const MESSAGES = {
     'Too many login attempts. Please try again later',
 
   // Token
-  INVALID_TOKEN: 'Invalid token',
-  TOKEN_EXPIRED: 'Token expired',
-  REFRESH_TOKEN_REQUIRED: 'Refresh token is required',
+    // Token
+    INVALID_TOKEN: 'Invalid or expired token',
+    TOKEN_EXPIRED: 'Token expired',
+    REFRESH_TOKEN_REQUIRED: 'Refresh token is required',
+    TOKEN_REFRESHED_SUCCESSFULLY: 'Token refreshed successfully',
 
   // Google OAuth
   GOOGLE_LOGIN_SUCCESSFUL: 'Google login successful',
@@ -58,4 +60,6 @@ export const MESSAGES = {
     'Gmail connected successfully',
   CALENDAR_CONNECTED_SUCCESSFULLY:
     'Calendar connected successfully',
+
+  
 };
