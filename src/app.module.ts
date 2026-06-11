@@ -17,6 +17,7 @@ import { AuthMiddleware } from './common/middleware/auth.middleware';
 
 import { AuthModule } from './modules/auth/auth.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { UserModule } from './modules/user/user.module';
 
 @Module({
   imports: [
@@ -37,9 +38,11 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     LoggerModule,
 
     AuthModule,
+    UserModule,
     DashboardModule,
   ],
 })
+
 
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
@@ -51,6 +54,22 @@ export class AppModule implements NestModule {
       {
         path: 'dashboard/overview',
         method: RequestMethod.GET,
+      },
+      {
+        path: 'users/profile',
+        method: RequestMethod.GET,
+      },
+      {
+        path: 'users/profile',
+        method: RequestMethod.PATCH,
+      },
+      {
+        path: 'users/address/suggestions',
+        method: RequestMethod.GET,
+      },
+      {
+        path: 'users/address',
+        method: RequestMethod.PATCH,
       },
     );
   }

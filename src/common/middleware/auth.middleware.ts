@@ -23,6 +23,13 @@ export class AuthMiddleware implements NestMiddleware {
   constructor(private readonly jwtService: JwtService) {}
 
   use(req: AuthRequest, res: Response, next: NextFunction) {
+    console.log('================================');
+    console.log('AUTH MIDDLEWARE HIT');
+    console.log('URL:', req.originalUrl);
+    console.log('METHOD:', req.method);
+    console.log('AUTH HEADER:', req.headers.authorization);
+    console.log('================================');
+
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -31,6 +38,8 @@ export class AuthMiddleware implements NestMiddleware {
     }
 
     const token = authHeader.split(' ')[1];
+
+    console.log('TOKEN:', token);
 
     if (!token) {
       this.logger.warn('Bearer token missing');
@@ -48,7 +57,13 @@ export class AuthMiddleware implements NestMiddleware {
         tokenVersion?: number;
       };
 
+      console.log('================================');
+      console.log('DECODED TOKEN:', decoded);
+      console.log('================================');
+
       const userId = decoded.sub || decoded.userId;
+
+      console.log('USER ID FROM TOKEN:', userId);
 
       if (!userId) {
         this.logger.warn('Token decoded but user id is missing');
@@ -62,11 +77,20 @@ export class AuthMiddleware implements NestMiddleware {
         tokenVersion: decoded.tokenVersion,
       };
 
+      console.log('================================');
+      console.log('REQ.USER:', req.user);
+      console.log('================================');
+
       this.logger.log(`Authenticated userId: ${userId}`);
 
       next();
     } catch (error) {
+      console.log('================================');
+      console.log('JWT VERIFY ERROR:', error);
+      console.log('================================');
+
       this.logger.error('JWT verification failed', error);
+
       throw new UnauthenticatedError(MESSAGES.INVALID_TOKEN);
     }
   }

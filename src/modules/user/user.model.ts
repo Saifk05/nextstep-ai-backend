@@ -9,6 +9,13 @@ export enum UserStatus {
   BLOCKED = 'BLOCKED',
 }
 
+export enum Gender {
+  MALE = 'MALE',
+  FEMALE = 'FEMALE',
+  OTHER = 'OTHER',
+  PREFER_NOT_TO_SAY = 'PREFER_NOT_TO_SAY',
+}
+
 @Schema({
   timestamps: true,
   collection: 'users',
@@ -48,6 +55,48 @@ export class User {
 
   @Prop()
   profilePicture?: string;
+
+  @Prop()
+  dateOfBirth?: Date;
+
+  @Prop({
+    enum: Gender,
+  })
+  gender?: Gender;
+
+  @Prop({
+    type: {
+      label: { type: String },
+
+      line1: { type: String },
+      line2: { type: String },
+
+      city: { type: String },
+      state: { type: String },
+      country: { type: String },
+
+      pincode: { type: String },
+
+      latitude: { type: Number },
+      longitude: { type: Number },
+    },
+    default: undefined,
+  })
+  address?: {
+    label?: string;
+
+    line1?: string;
+    line2?: string;
+
+    city?: string;
+    state?: string;
+    country?: string;
+
+    pincode?: string;
+
+    latitude?: number;
+    longitude?: number;
+  };
 
   @Prop({
     type: {
