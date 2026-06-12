@@ -19,6 +19,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { UserModule } from './modules/user/user.module';
 import { TaskModule } from './modules/task/task.module';
+import { IntegrationsModule } from './modules/integrations/integrations.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { TaskModule } from './modules/task/task.module';
     UserModule,
     DashboardModule,
     TaskModule,
+    IntegrationsModule,
   ],
 })
 export class AppModule implements NestModule {
@@ -84,6 +86,20 @@ export class AppModule implements NestModule {
       {
         path: 'tasks/(.*)',
         method: RequestMethod.ALL,
+      },
+
+      // Integration protected routes
+      {
+        path: 'integrations/google/connect',
+        method: RequestMethod.GET,
+      },
+      {
+        path: 'integrations/google/status',
+        method: RequestMethod.GET,
+      },
+      {
+        path: 'integrations/google/calendar/events',
+        method: RequestMethod.GET,
       },
     );
   }
