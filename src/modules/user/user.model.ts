@@ -101,10 +101,14 @@ export class User {
   @Prop()
   refreshToken?: string;
 
-  @Prop({ default: 0 })
+  @Prop({
+    default: 0,
+  })
   failedAttempts: number;
 
-  @Prop({ default: false })
+  @Prop({
+    default: false,
+  })
   isAccountLocked: boolean;
 
   @Prop({
@@ -127,6 +131,26 @@ export class User {
     gmailConnected: boolean;
     calendarConnected: boolean;
   };
+
+  // ===== TASK STREAK FIELDS =====
+
+  @Prop({
+    default: 0,
+  })
+  currentStreak: number;
+
+  @Prop({
+    default: 0,
+  })
+  longestStreak: number;
+
+  @Prop({
+    type: Date,
+    default: null,
+  })
+  lastTaskCompletedDate?: Date;
+
+  // ===== LOGIN =====
 
   @Prop()
   lastLoginAt?: Date;

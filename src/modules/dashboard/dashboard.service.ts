@@ -1,12 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { UserService } from '../user/user.service';
+import { TaskService } from '../task/task.service';
 
 @Injectable()
 export class DashboardService {
   private readonly logger = new Logger(DashboardService.name);
 
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly taskService: TaskService,
+  ) {}
 
   async getOverview(authUser: any) {
     const userId =
@@ -14,16 +18,21 @@ export class DashboardService {
 
     this.logger.log(`Fetching dashboard overview for userId: ${userId}`);
 
-    const user = await this.userService.findById(userId);
+    const [user, taskSummary] = await Promise.all([
+      this.userService.findById(userId),
+      this.taskService.getTaskSummaryData(userId),
+    ]);
 
     const firstName = user?.firstName || 'User';
     const lastName = user?.lastName || '';
+
+    const hasTasks = taskSummary.totalTasks > 0;
 
     return {
       success: true,
       message: 'Dashboard overview fetched successfully',
       data: {
-        isNewUser: true,
+        isNewUser: !hasTasks,
 
         user: {
           id: userId,
@@ -44,26 +53,34 @@ export class DashboardService {
         },
 
         summary: {
-          totalTasks: 0,
-          completedTasks: 0,
-          pendingTasks: 0,
+          totalTasks: taskSummary.totalTasks,
+          completedTasks: taskSummary.completedTasks,
+          pendingTasks: taskSummary.pendingTasks,
           activeGoals: 0,
           monthlyExpense: 0,
-          productivityScore: 0,
+          productivityScore: taskSummary.productivityScore,
         },
 
-        todayFocus: {
-          title: 'Start your day with one small step',
-          description:
-            'Add your first task or goal to begin planning with NextStep AI.',
-        },
+        todayFocus: hasTasks
+          ? {
+              title: 'Keep your momentum going',
+              description:
+                'Complete at least one task today to continue your streak.',
+            }
+          : {
+              title: 'Start your day with one small step',
+              description:
+                'Add your first task or goal to begin planning with NextStep AI.',
+            },
 
         tasks: {
-          total: 0,
-          completed: 0,
-          pending: 0,
-          completionPercentage: 0,
-          todayTasks: [],
+          total: taskSummary.totalTasks,
+          completed: taskSummary.completedTasks,
+          pending: taskSummary.pendingTasks,
+          missed: taskSummary.missedTasks,
+          completionPercentage: taskSummary.completionPercentage,
+          todayTasks: taskSummary.todayTasks,
+          todayTasksCount: taskSummary.todayTasksCount,
           emptyState: {
             title: 'No tasks yet',
             description: 'Add your first task to plan your day.',
@@ -98,16 +115,16 @@ export class DashboardService {
         },
 
         productivity: {
-          todayScore: 0,
-          weeklyScore: 0,
-          currentStreak: 0,
-          bestStreak: 0,
+          todayScore: taskSummary.productivityScore,
+          weeklyScore: taskSummary.productivityScore,
+          currentStreak: taskSummary.currentStreak,
+          bestStreak: taskSummary.longestStreak,
         },
 
         quickActions: [
           {
             type: 'CREATE_TASK',
-            title: 'Add your first task',
+            title: hasTasks ? 'Add another task' : 'Add your first task',
             description: 'Start planning your day',
           },
           {
