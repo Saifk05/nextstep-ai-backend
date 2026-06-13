@@ -14,6 +14,9 @@ import { google, gmail_v1 } from 'googleapis';
 import {
   ConnectedAccount,
   ConnectedAccountDocument,
+  ConnectedProvider,
+  ConnectedAccountType,
+  ConnectedService,
 } from './schemas/connected-account.schema';
 import { GoogleProvider } from './providers/google/google.provider';
 
@@ -32,25 +35,34 @@ export class IntegrationsService {
     private readonly googleProvider: GoogleProvider,
   ) {}
 
-  generateGoogleAuthUrl(userId: string) {
-    const oauth2Client = this.googleProvider.getOAuthClient();
+    generateGoogleAuthUrl(userId: string, accountType?: string) {
+      const oauth2Client = this.googleProvider.getOAuthClient();
 
-    const state = this.createState(userId);
+const safeAccountType =
+  accountType === ConnectedAccountType.WORK
+    ? ConnectedAccountType.WORK
+    : ConnectedAccountType.PERSONAL;
+
+const state = this.createState(userId, safeAccountType);
 
     const url = oauth2Client.generateAuthUrl({
       access_type: 'offline',
       prompt: 'consent',
       include_granted_scopes: true,
-      scope: [this.GOOGLE_CALENDAR_SCOPE, this.GOOGLE_GMAIL_READONLY_SCOPE],
+      scope: [
+        'openid',
+        'email',
+        'profile',
+        this.GOOGLE_CALENDAR_SCOPE,
+        this.GOOGLE_GMAIL_READONLY_SCOPE,
+      ],
       state,
     });
 
     return {
       success: true,
       message: 'Google OAuth URL generated successfully',
-      data: {
-        url,
-      },
+      data: { url },
     };
   }
 
@@ -63,10 +75,10 @@ export class IntegrationsService {
       throw new BadRequestException('OAuth state is required');
     }
 
-    const { userId } = this.verifyState(state);
+    const { userId, accountType } = this.verifyState(state);
+    const userObjectId = new Types.ObjectId(userId);
 
     const oauth2Client = this.googleProvider.getOAuthClient();
-
     const { tokens } = await oauth2Client.getToken(code);
 
     if (!tokens.access_token) {
@@ -75,18 +87,37 @@ export class IntegrationsService {
 
     oauth2Client.setCredentials(tokens);
 
-    let googleEmail = '';
+let googleEmail = '';
 
-    try {
-      const tokenInfo = await oauth2Client.getTokenInfo(tokens.access_token);
-      googleEmail = tokenInfo.email || '';
-    } catch {
-      googleEmail = '';
+try {
+  const oauth2 = google.oauth2({
+    version: 'v2',
+    auth: oauth2Client,
+  });
+
+  const profile = await oauth2.userinfo.get();
+
+  googleEmail = profile.data.email?.toLowerCase() || '';
+} catch (error) {
+  console.log('GOOGLE PROFILE EMAIL ERROR:', error);
+  googleEmail = '';
+}
+
+    if (!googleEmail) {
+      throw new BadRequestException('Unable to fetch Google account email');
     }
 
     const existingAccount = await this.connectedAccountModel.findOne({
-      userId: new Types.ObjectId(userId),
-      provider: 'GOOGLE',
+      userId: userObjectId,
+      provider: ConnectedProvider.GOOGLE,
+      email: googleEmail,
+    });
+
+    const existingDefaultAccount = await this.connectedAccountModel.findOne({
+      userId: userObjectId,
+      provider: ConnectedProvider.GOOGLE,
+      isConnected: true,
+      isDefault: true,
     });
 
     const tokenScopes = tokens.scope
@@ -99,19 +130,24 @@ export class IntegrationsService {
 
     await this.connectedAccountModel.findOneAndUpdate(
       {
-        userId: new Types.ObjectId(userId),
-        provider: 'GOOGLE',
+        userId: userObjectId,
+        provider: ConnectedProvider.GOOGLE,
+        email: googleEmail,
       },
       {
-        userId: new Types.ObjectId(userId),
-        provider: 'GOOGLE',
-        email: googleEmail || existingAccount?.email || '',
+        userId: userObjectId,
+        provider: ConnectedProvider.GOOGLE,
+        email: googleEmail,
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token || existingAccount?.refreshToken,
         expiryDate: tokens.expiry_date || existingAccount?.expiryDate,
         scopes: mergedScopes,
         isConnected: true,
+        isDefault: existingAccount?.isDefault || !existingDefaultAccount,
+        enabledServices: [ConnectedService.GMAIL, ConnectedService.CALENDAR],
+        accountType: existingAccount?.accountType || accountType,
         connectedAt: existingAccount?.connectedAt || new Date(),
+        lastSyncAt: new Date(),
         lastSyncedAt: new Date(),
       },
       {
@@ -126,28 +162,155 @@ export class IntegrationsService {
     return `${frontendUrl}/settings?google=connected`;
   }
 
-  async getGoogleStatus(userId: string) {
+  async getGoogleAccounts(userId: string) {
+    const accounts = await this.connectedAccountModel
+      .find({
+        userId: new Types.ObjectId(userId),
+        provider: ConnectedProvider.GOOGLE,
+        isConnected: true,
+      })
+      .sort({ isDefault: -1, connectedAt: -1 })
+      .exec();
+
+    return {
+      success: true,
+      message: 'Google accounts fetched successfully',
+      data: accounts.map((account) => ({
+        id: account._id,
+        provider: account.provider,
+        email: account.email,
+        isConnected: account.isConnected,
+        isDefault: account.isDefault || false,
+        enabledServices: account.enabledServices || [],
+        accountType: account.accountType || ConnectedAccountType.PERSONAL,
+        connectedAt: account.connectedAt || null,
+        lastSyncAt: account.lastSyncAt || account.lastSyncedAt || null,
+      })),
+    };
+  }
+
+  async setDefaultGoogleAccount(userId: string, accountId: string) {
+    if (!Types.ObjectId.isValid(accountId)) {
+      throw new BadRequestException('Invalid connected account id');
+    }
+
+    const userObjectId = new Types.ObjectId(userId);
+
     const account = await this.connectedAccountModel.findOne({
-      userId: new Types.ObjectId(userId),
-      provider: 'GOOGLE',
+      _id: new Types.ObjectId(accountId),
+      userId: userObjectId,
+      provider: ConnectedProvider.GOOGLE,
       isConnected: true,
     });
 
-    const hasRefreshToken = !!account?.refreshToken;
+    if (!account) {
+      throw new NotFoundException('Google account not found');
+    }
+
+    await this.connectedAccountModel.updateMany(
+      {
+        userId: userObjectId,
+        provider: ConnectedProvider.GOOGLE,
+      },
+      {
+        $set: { isDefault: false },
+      },
+    );
+
+    account.isDefault = true;
+    await account.save();
+
+    return {
+      success: true,
+      message: 'Default Google account updated successfully',
+      data: {
+        id: account._id,
+        email: account.email,
+        isDefault: account.isDefault,
+      },
+    };
+  }
+
+  async deleteGoogleAccount(userId: string, accountId: string) {
+    if (!Types.ObjectId.isValid(accountId)) {
+      throw new BadRequestException('Invalid connected account id');
+    }
+
+    const userObjectId = new Types.ObjectId(userId);
+
+    const account = await this.connectedAccountModel.findOne({
+      _id: new Types.ObjectId(accountId),
+      userId: userObjectId,
+      provider: ConnectedProvider.GOOGLE,
+    });
+
+    if (!account) {
+      throw new NotFoundException('Google account not found');
+    }
+
+    const wasDefault = account.isDefault;
+
+    await account.deleteOne();
+
+    if (wasDefault) {
+      const nextAccount = await this.connectedAccountModel.findOne({
+        userId: userObjectId,
+        provider: ConnectedProvider.GOOGLE,
+        isConnected: true,
+      });
+
+      if (nextAccount) {
+        nextAccount.isDefault = true;
+        await nextAccount.save();
+      }
+    }
+
+    return {
+      success: true,
+      message: 'Google account disconnected successfully',
+    };
+  }
+
+  async getGoogleStatus(userId: string) {
+    const accounts = await this.connectedAccountModel.find({
+      userId: new Types.ObjectId(userId),
+      provider: ConnectedProvider.GOOGLE,
+      isConnected: true,
+    });
+
+    const defaultAccount =
+      accounts.find((account) => account.isDefault) || accounts[0];
+
+    const hasRefreshToken = !!defaultAccount?.refreshToken;
 
     return {
       success: true,
       message: 'Google connection status fetched successfully',
       data: {
-        isConnected: !!account && hasRefreshToken,
-        provider: 'GOOGLE',
-        email: account?.email || null,
-        connectedAt: account?.connectedAt || null,
-        calendarConnected:
-          hasRefreshToken && this.hasScope(account, this.GOOGLE_CALENDAR_SCOPE),
-        gmailConnected:
-          hasRefreshToken &&
-          this.hasScope(account, this.GOOGLE_GMAIL_READONLY_SCOPE),
+        isConnected: accounts.length > 0 && hasRefreshToken,
+        provider: ConnectedProvider.GOOGLE,
+        totalConnectedAccounts: accounts.length,
+        defaultAccount: defaultAccount
+          ? {
+              id: defaultAccount._id,
+              email: defaultAccount.email,
+              isDefault: defaultAccount.isDefault,
+              connectedAt: defaultAccount.connectedAt || null,
+              calendarConnected:
+                hasRefreshToken &&
+                this.hasScope(defaultAccount, this.GOOGLE_CALENDAR_SCOPE),
+              gmailConnected:
+                hasRefreshToken &&
+                this.hasScope(defaultAccount, this.GOOGLE_GMAIL_READONLY_SCOPE),
+            }
+          : null,
+        accounts: accounts.map((account) => ({
+          id: account._id,
+          email: account.email,
+          isDefault: account.isDefault || false,
+          enabledServices: account.enabledServices || [],
+          accountType: account.accountType || ConnectedAccountType.PERSONAL,
+        })),
       },
     };
   }
@@ -196,56 +359,54 @@ export class IntegrationsService {
   }
 
   async getGoogleGmailStatus(userId: string) {
-    const account = await this.connectedAccountModel.findOne({
-      userId: new Types.ObjectId(userId),
-      provider: 'GOOGLE',
-      isConnected: true,
-    });
+    const account = await this.getConnectedGoogleAccount(userId);
 
     return {
       success: true,
       message: 'Google Gmail connection status fetched successfully',
       data: {
+        accountId: account._id,
+        email: account.email,
         isConnected:
-          !!account?.refreshToken &&
+          !!account.refreshToken &&
           this.hasScope(account, this.GOOGLE_GMAIL_READONLY_SCOPE),
       },
     };
   }
 
   async getGoogleGmailMessages(userId: string) {
-  try {
-    const gmail = await this.getGmailClient(userId);
+    try {
+      const gmail = await this.getGmailClient(userId);
 
-    const response = await gmail.users.messages.list({
-      userId: 'me',
-      maxResults: 20,
-    });
+      const response = await gmail.users.messages.list({
+        userId: 'me',
+        maxResults: 20,
+      });
 
-    const messageIds = response.data.messages || [];
+      const messageIds = response.data.messages || [];
 
-    const messages = await Promise.all(
-      messageIds.map(async (message) => {
-        const detail = await gmail.users.messages.get({
-          userId: 'me',
-          id: message.id || '',
-          format: 'metadata',
-          metadataHeaders: ['Subject', 'From', 'Date'],
-        });
+      const messages = await Promise.all(
+        messageIds.map(async (message) => {
+          const detail = await gmail.users.messages.get({
+            userId: 'me',
+            id: message.id || '',
+            format: 'metadata',
+            metadataHeaders: ['Subject', 'From', 'Date'],
+          });
 
-        return this.mapGmailMessage(detail.data);
-      }),
-    );
+          return this.mapGmailMessage(detail.data);
+        }),
+      );
 
-    return {
-      success: true,
-      message: 'Gmail messages fetched successfully',
-      data: messages,
-    };
-  } catch (error) {
-    this.handleGoogleApiError(error, 'Gmail');
+      return {
+        success: true,
+        message: 'Gmail messages fetched successfully',
+        data: messages,
+      };
+    } catch (error) {
+      this.handleGoogleApiError(error, 'Gmail');
+    }
   }
-}
 
   async getGoogleUnreadMessages(userId: string) {
     const gmail = await this.getGmailClient(userId);
@@ -282,78 +443,37 @@ export class IntegrationsService {
     }
   }
 
-  // async getGoogleGmailSummary(userId: string) {
-  //   const gmail = await this.getGmailClient(userId);
-
-  //   try {
-  //     const [profile, unread, important] = await Promise.all([
-  //       gmail.users.getProfile({
-  //         userId: 'me',
-  //       }),
-  //       gmail.users.messages.list({
-  //         userId: 'me',
-  //         labelIds: ['UNREAD'],
-  //         maxResults: 1,
-  //       }),
-  //       gmail.users.messages.list({
-  //         userId: 'me',
-  //         labelIds: ['IMPORTANT'],
-  //         maxResults: 1,
-  //       }),
-  //     ]);
-
-  //     return {
-  //       success: true,
-  //       message: 'Gmail summary fetched successfully',
-  //       data: {
-  //         totalEmails: profile.data.messagesTotal || 0,
-  //         unreadEmails: unread.data.resultSizeEstimate || 0,
-  //         importantEmails: important.data.resultSizeEstimate || 0,
-  //       },
-  //     };
-  //   } catch (error) {
-  //     this.handleGoogleApiError(error, 'Gmail');
-  //   }
-  // }
-
   async getGoogleGmailSummary(userId: string) {
-  console.log('GMAIL SUMMARY METHOD HIT', userId);
+    try {
+      const gmail = await this.getGmailClient(userId);
 
-  try {
-    const gmail = await this.getGmailClient(userId);
+      const [profile, unread, important] = await Promise.all([
+        gmail.users.getProfile({ userId: 'me' }),
+        gmail.users.messages.list({
+          userId: 'me',
+          labelIds: ['UNREAD'],
+          maxResults: 1,
+        }),
+        gmail.users.messages.list({
+          userId: 'me',
+          labelIds: ['IMPORTANT'],
+          maxResults: 1,
+        }),
+      ]);
 
-    console.log('GMAIL CLIENT CREATED');
-
-    const [profile, unread, important] = await Promise.all([
-      gmail.users.getProfile({ userId: 'me' }),
-      gmail.users.messages.list({
-        userId: 'me',
-        labelIds: ['UNREAD'],
-        maxResults: 1,
-      }),
-      gmail.users.messages.list({
-        userId: 'me',
-        labelIds: ['IMPORTANT'],
-        maxResults: 1,
-      }),
-    ]);
-
-    console.log('GMAIL API SUCCESS');
-
-    return {
-      success: true,
-      message: 'Gmail summary fetched successfully',
-      data: {
-        totalEmails: profile.data.messagesTotal || 0,
-        unreadEmails: unread.data.resultSizeEstimate || 0,
-        importantEmails: important.data.resultSizeEstimate || 0,
-      },
-    };
-  } catch (error) {
-    console.log('GMAIL SUMMARY ERROR:', error);
-    this.handleGoogleApiError(error, 'Gmail');
+      return {
+        success: true,
+        message: 'Gmail summary fetched successfully',
+        data: {
+          totalEmails: profile.data.messagesTotal || 0,
+          unreadEmails: unread.data.resultSizeEstimate || 0,
+          importantEmails: important.data.resultSizeEstimate || 0,
+        },
+      };
+    } catch (error) {
+      this.handleGoogleApiError(error, 'Gmail');
+    }
   }
-}
 
   private async getGmailClient(userId: string) {
     const account = await this.getConnectedGoogleAccount(userId);
@@ -368,15 +488,44 @@ export class IntegrationsService {
     });
   }
 
-  private async getConnectedGoogleAccount(userId: string) {
-    const account = await this.connectedAccountModel.findOne({
+  private async getConnectedGoogleAccount(userId: string, accountId?: string) {
+    const filter: any = {
       userId: new Types.ObjectId(userId),
-      provider: 'GOOGLE',
+      provider: ConnectedProvider.GOOGLE,
       isConnected: true,
-    });
+    };
+
+    if (accountId) {
+      if (!Types.ObjectId.isValid(accountId)) {
+        throw new BadRequestException('Invalid connected account id');
+      }
+
+      filter._id = new Types.ObjectId(accountId);
+    } else {
+      filter.isDefault = true;
+    }
+
+    let account = await this.connectedAccountModel.findOne(filter);
+
+    if (!account && !accountId) {
+      account = await this.connectedAccountModel.findOne({
+        userId: new Types.ObjectId(userId),
+        provider: ConnectedProvider.GOOGLE,
+        isConnected: true,
+      });
+
+      if (account) {
+        account.isDefault = true;
+        await account.save();
+      }
+    }
 
     if (!account) {
-      throw new NotFoundException('Google account is not connected');
+      throw new NotFoundException(
+        accountId
+          ? 'Selected Google account is not connected'
+          : 'Default Google account is not connected',
+      );
     }
 
     if (!account.refreshToken) {
@@ -419,7 +568,6 @@ export class IntegrationsService {
     if (isExpired) {
       try {
         const refreshedToken = await oauth2Client.refreshAccessToken();
-
         const credentials = refreshedToken.credentials;
 
         if (credentials.access_token) {
@@ -519,11 +667,15 @@ export class IntegrationsService {
     );
   }
 
-  private createState(userId: string): string {
-    const payload = {
-      userId,
-      timestamp: Date.now(),
-    };
+    private createState(
+      userId: string,
+      accountType: ConnectedAccountType,
+    ): string {
+      const payload = {
+        userId,
+        accountType,
+        timestamp: Date.now(),
+      };
 
     const payloadBase64 = Buffer.from(JSON.stringify(payload)).toString(
       'base64url',
@@ -534,7 +686,11 @@ export class IntegrationsService {
     return `${payloadBase64}.${signature}`;
   }
 
-  private verifyState(state: string): { userId: string } {
+
+    private verifyState(state: string): {
+      userId: string;
+      accountType: ConnectedAccountType;
+    } {
     const [payloadBase64, signature] = state.split('.');
 
     if (!payloadBase64 || !signature) {
@@ -559,6 +715,10 @@ export class IntegrationsService {
 
     return {
       userId: payload.userId,
+      accountType:
+        payload.accountType === ConnectedAccountType.WORK
+          ? ConnectedAccountType.WORK
+          : ConnectedAccountType.PERSONAL,
     };
   }
 

@@ -1,6 +1,9 @@
 import {
   Controller,
+  Delete,
   Get,
+  Param,
+  Patch,
   Query,
   Redirect,
   Req,
@@ -14,12 +17,18 @@ import { IntegrationsService } from './integrations.service';
 export class IntegrationsController {
   constructor(private readonly integrationsService: IntegrationsService) {}
 
-  @Get('google/connect')
-  getGoogleConnectUrl(@Req() req: Request) {
-    const userId = this.getUserIdFromRequest(req);
+@Get('google/connect')
+getGoogleConnectUrl(
+  @Req() req: Request,
+  @Query('accountType') accountType?: string,
+) {
+  const userId = this.getUserIdFromRequest(req);
 
-    return this.integrationsService.generateGoogleAuthUrl(userId);
-  }
+  return this.integrationsService.generateGoogleAuthUrl(
+    userId,
+    accountType,
+  );
+}
 
   @Get('google/callback')
   @Redirect()
@@ -35,6 +44,36 @@ export class IntegrationsController {
     return {
       url: redirectUrl,
     };
+  }
+
+  @Get('google/accounts')
+  getGoogleAccounts(@Req() req: Request) {
+    const userId = this.getUserIdFromRequest(req);
+
+    return this.integrationsService.getGoogleAccounts(userId);
+  }
+
+  @Patch('google/accounts/:id/default')
+  setDefaultGoogleAccount(
+    @Req() req: Request,
+    @Param('id') accountId: string,
+  ) {
+    const userId = this.getUserIdFromRequest(req);
+
+    return this.integrationsService.setDefaultGoogleAccount(
+      userId,
+      accountId,
+    );
+  }
+
+  @Delete('google/accounts/:id')
+  deleteGoogleAccount(
+    @Req() req: Request,
+    @Param('id') accountId: string,
+  ) {
+    const userId = this.getUserIdFromRequest(req);
+
+    return this.integrationsService.deleteGoogleAccount(userId, accountId);
   }
 
   @Get('google/status')
