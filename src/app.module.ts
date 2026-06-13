@@ -101,6 +101,35 @@ export class AppModule implements NestModule {
         path: 'integrations/google/calendar/events',
         method: RequestMethod.GET,
       },
+      // Integration protected routes
+{
+  path: 'integrations/google/connect',
+  method: RequestMethod.GET,
+},
+{
+  path: 'integrations/google/status',
+  method: RequestMethod.GET,
+},
+{
+  path: 'integrations/google/calendar/events',
+  method: RequestMethod.GET,
+},
+{
+  path: 'integrations/google/gmail/status',
+  method: RequestMethod.GET,
+},
+{
+  path: 'integrations/google/gmail/messages',
+  method: RequestMethod.GET,
+},
+{
+  path: 'integrations/google/gmail/unread',
+  method: RequestMethod.GET,
+},
+{
+  path: 'integrations/google/gmail/summary',
+  method: RequestMethod.GET,
+},
     );
   }
 }

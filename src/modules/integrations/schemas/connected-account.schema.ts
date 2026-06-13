@@ -31,9 +31,15 @@ export class ConnectedAccount {
 
   @Prop({ default: Date.now })
   connectedAt: Date;
+
+  @Prop()
+  lastSyncedAt?: Date;
 }
 
 export const ConnectedAccountSchema =
   SchemaFactory.createForClass(ConnectedAccount);
 
-ConnectedAccountSchema.index({ userId: 1, provider: 1 }, { unique: true });
+ConnectedAccountSchema.index(
+  { userId: 1, provider: 1 },
+  { unique: true },
+);
