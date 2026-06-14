@@ -8,9 +8,13 @@ import {
 import { IntegrationsController } from './integrations.controller';
 import { IntegrationsService } from './integrations.service';
 import { GoogleProvider } from './providers/google/google.provider';
+import { MailModule } from '../../common/mail/mail.module';
+import { UserModule } from '../user/user.module';
 
 @Module({
   imports: [
+    MailModule,
+    UserModule,
     MongooseModule.forFeature([
       {
         name: ConnectedAccount.name,

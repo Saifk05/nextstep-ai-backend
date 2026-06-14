@@ -1,9 +1,11 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
   Param,
   Patch,
+  Post,
   Query,
   Redirect,
   Req,
@@ -17,18 +19,35 @@ import { IntegrationsService } from './integrations.service';
 export class IntegrationsController {
   constructor(private readonly integrationsService: IntegrationsService) {}
 
-@Get('google/connect')
-getGoogleConnectUrl(
-  @Req() req: Request,
-  @Query('accountType') accountType?: string,
-) {
-  const userId = this.getUserIdFromRequest(req);
+  @Post('google/connect/init')
+  sendGoogleConnectOtp(@Req() req: Request) {
+    const userId = this.getUserIdFromRequest(req);
 
-  return this.integrationsService.generateGoogleAuthUrl(
-    userId,
-    accountType,
-  );
-}
+    return this.integrationsService.sendGoogleConnectOtp(userId);
+  }
+
+  @Post('google/connect/verify-otp')
+  verifyGoogleConnectOtp(
+    @Req() req: Request,
+    @Body('otp') otp: string,
+  ) {
+    const userId = this.getUserIdFromRequest(req);
+
+    return this.integrationsService.verifyGoogleConnectOtp(userId, otp);
+  }
+
+  @Get('google/connect')
+  getGoogleConnectUrl(
+    @Req() req: Request,
+    @Query('accountType') accountType?: string,
+  ) {
+    const userId = this.getUserIdFromRequest(req);
+
+    return this.integrationsService.generateGoogleAuthUrl(
+      userId,
+      accountType,
+    );
+  }
 
   @Get('google/callback')
   @Redirect()

@@ -10,6 +10,8 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import * as crypto from 'crypto';
 import { google, gmail_v1 } from 'googleapis';
+import { UserService } from '../user/user.service';
+
 
 import {
   ConnectedAccount,
@@ -19,21 +21,25 @@ import {
   ConnectedService,
 } from './schemas/connected-account.schema';
 import { GoogleProvider } from './providers/google/google.provider';
+import { MailService } from '../../common/mail/mail.service';
+
 
 @Injectable()
 export class IntegrationsService {
-  private readonly GOOGLE_CALENDAR_SCOPE =
-    'https://www.googleapis.com/auth/calendar.readonly';
+    private readonly GOOGLE_CALENDAR_SCOPE =
+      'https://www.googleapis.com/auth/calendar.readonly';
 
-  private readonly GOOGLE_GMAIL_READONLY_SCOPE =
-    'https://www.googleapis.com/auth/gmail.readonly';
+    private readonly GOOGLE_GMAIL_READONLY_SCOPE =
+      'https://www.googleapis.com/auth/gmail.readonly';
 
-  constructor(
-    @InjectModel(ConnectedAccount.name)
-    private readonly connectedAccountModel: Model<ConnectedAccountDocument>,
-    private readonly configService: ConfigService,
-    private readonly googleProvider: GoogleProvider,
-  ) {}
+      constructor(
+        @InjectModel(ConnectedAccount.name)
+        private readonly connectedAccountModel: Model<ConnectedAccountDocument>,
+        private readonly configService: ConfigService,
+        private readonly googleProvider: GoogleProvider,
+        private readonly mailService: MailService,
+        private readonly userService: UserService,
+      ) {}
 
     generateGoogleAuthUrl(userId: string, accountType?: string) {
       const oauth2Client = this.googleProvider.getOAuthClient();
@@ -736,4 +742,85 @@ try {
       .update(payloadBase64)
       .digest('base64url');
   }
+
+  private generateOtp(): string {
+    return Math.floor(
+      100000 + Math.random() * 900000,
+    ).toString();
+  }
+
+  async sendGoogleConnectOtp(userId: string) {
+  const user = await this.userService.findById(userId);
+
+  if (!user) {
+    throw new NotFoundException('User not found');
+  }
+
+  const otp = this.generateOtp();
+
+  await this.userService.updateById(userId, {
+    otp: {
+      code: otp,
+      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+      verified: false,
+    },
+  });
+
+  await this.mailService.sendGoogleConnectOtp(
+    user.email,
+    otp,
+    user.firstName,
+  );
+
+  return {
+    success: true,
+    message: 'OTP sent successfully',
+  };
+}
+
+async verifyGoogleConnectOtp(
+  userId: string,
+  otp: string,
+) {
+  const user = await this.userService.findById(userId);
+
+  if (!user) {
+    throw new NotFoundException('User not found');
+  }
+
+  if (!user.otp?.code) {
+    throw new BadRequestException(
+      'OTP not requested',
+    );
+  }
+
+  if (user.otp.code !== otp) {
+    throw new BadRequestException(
+      'Invalid OTP',
+    );
+  }
+
+  if (
+    user.otp.expiresAt &&
+    user.otp.expiresAt < new Date()
+  ) {
+    throw new BadRequestException(
+      'OTP expired',
+    );
+  }
+
+  await this.userService.updateById(userId, {
+    otp: {
+      ...user.otp,
+      verified: true,
+    },
+  });
+
+  return {
+    success: true,
+    message: 'OTP verified successfully',
+  };
+}
+
+  
 }

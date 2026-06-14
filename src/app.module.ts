@@ -90,6 +90,14 @@ export class AppModule implements NestModule {
 
       // Google integration protected routes
       {
+        path: 'integrations/google/connect/init',
+        method: RequestMethod.POST,
+      },
+      {
+        path: 'integrations/google/connect/verify-otp',
+        method: RequestMethod.POST,
+      },
+      {
         path: 'integrations/google/connect',
         method: RequestMethod.GET,
       },
