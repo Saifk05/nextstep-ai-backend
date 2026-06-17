@@ -380,14 +380,42 @@ try {
     };
   }
 
-  async getGoogleGmailMessages(userId: string) {
+  async getGoogleGmailMessages(
+    userId: string,
+    accountId?: string,
+    pageToken?: string,
+    limit?: string,
+  ) {
     try {
-      const gmail = await this.getGmailClient(userId);
+      const gmail = await this.getGmailClient(userId, accountId);
 
-      const response = await gmail.users.messages.list({
-        userId: 'me',
-        maxResults: 20,
-      });
+      const maxResults = Math.min(Number(limit) || 20, 50);
+
+      const query =
+        'newer_than:30d (interview OR interviewed OR recruiter OR hiring OR HR OR job OR offer OR selected OR shortlisted OR "follow-up" OR "follow up" OR "next steps" OR deadline OR meeting OR subscription OR membership OR renewed OR renewal OR receipt OR payment) -in:spam -in:trash';
+
+      const [profile, unread, important, response] = await Promise.all([
+        gmail.users.getProfile({ userId: 'me' }),
+
+        gmail.users.messages.list({
+          userId: 'me',
+          labelIds: ['UNREAD'],
+          maxResults: 1,
+        }),
+
+        gmail.users.messages.list({
+          userId: 'me',
+          labelIds: ['IMPORTANT'],
+          maxResults: 1,
+        }),
+
+        gmail.users.messages.list({
+          userId: 'me',
+          q: query,
+          maxResults,
+          pageToken,
+        }),
+      ]);
 
       const messageIds = response.data.messages || [];
 
@@ -400,19 +428,69 @@ try {
             metadataHeaders: ['Subject', 'From', 'Date'],
           });
 
-          return this.mapGmailMessage(detail.data);
+          const mappedMessage = this.mapGmailMessage(detail.data);
+
+          return {
+            ...mappedMessage,
+            category: this.getGmailMessageCategory(mappedMessage),
+            priority: this.getGmailMessagePriority(mappedMessage),
+          };
         }),
       );
 
       return {
         success: true,
         message: 'Gmail messages fetched successfully',
+        summary: {
+          totalEmails: profile.data.messagesTotal || 0,
+          unreadEmails: unread.data.resultSizeEstimate || 0,
+          importantEmails: important.data.resultSizeEstimate || 0,
+        },
         data: messages,
+        pagination: {
+          nextPageToken: response.data.nextPageToken || null,
+          resultSizeEstimate: response.data.resultSizeEstimate || 0,
+          limit: maxResults,
+        },
       };
     } catch (error) {
       this.handleGoogleApiError(error, 'Gmail');
     }
   }
+
+  // async getGoogleGmailMessages(userId: string) {
+  //   try {
+  //     const gmail = await this.getGmailClient(userId);
+
+  //     const response = await gmail.users.messages.list({
+  //       userId: 'me',
+  //       maxResults: 20,
+  //     });
+
+  //     const messageIds = response.data.messages || [];
+
+  //     const messages = await Promise.all(
+  //       messageIds.map(async (message) => {
+  //         const detail = await gmail.users.messages.get({
+  //           userId: 'me',
+  //           id: message.id || '',
+  //           format: 'metadata',
+  //           metadataHeaders: ['Subject', 'From', 'Date'],
+  //         });
+
+  //         return this.mapGmailMessage(detail.data);
+  //       }),
+  //     );
+
+  //     return {
+  //       success: true,
+  //       message: 'Gmail messages fetched successfully',
+  //       data: messages,
+  //     };
+  //   } catch (error) {
+  //     this.handleGoogleApiError(error, 'Gmail');
+  //   }
+  // }
 
   async getGoogleUnreadMessages(userId: string) {
     const gmail = await this.getGmailClient(userId);
@@ -449,6 +527,83 @@ try {
     }
   }
 
+  private getGmailMessageCategory(email: any): string {
+    const text = `${email.subject || ''} ${email.from || ''} ${
+      email.snippet || ''
+    }`.toLowerCase();
+
+    if (
+      text.includes('interview') ||
+      text.includes('interviewed') ||
+      text.includes('recruiter') ||
+      text.includes('hiring') ||
+      text.includes('shortlisted') ||
+      text.includes('selected') ||
+      text.includes('offer') ||
+      text.includes('follow-up') ||
+      text.includes('follow up') ||
+      text.includes('next steps')
+    ) {
+      return 'INTERVIEW';
+    }
+
+    if (
+      text.includes('subscription') ||
+      text.includes('membership') ||
+      text.includes('renewed') ||
+      text.includes('renewal') ||
+      text.includes('receipt') ||
+      text.includes('payment unsuccessful') ||
+      text.includes('payment failed') ||
+      text.includes('netflix') ||
+      text.includes('amazon prime') ||
+      text.includes('google play')
+    ) {
+      return 'SUBSCRIPTION';
+    }
+
+    if (
+      text.includes('deadline') ||
+      text.includes('due date') ||
+      text.includes('last date') ||
+      text.includes('final reminder')
+    ) {
+      return 'DEADLINE';
+    }
+
+    if (
+      text.includes('meeting') ||
+      text.includes('calendar invite') ||
+      text.includes('invitation')
+    ) {
+      return 'MEETING';
+    }
+
+    return 'OTHER';
+  }
+
+  private getGmailMessagePriority(email: any): string {
+    const category = this.getGmailMessageCategory(email);
+
+    if (category === 'INTERVIEW') {
+      return 'HIGH';
+    }
+
+    if (category === 'DEADLINE') {
+      return 'HIGH';
+    }
+
+    if (category === 'MEETING') {
+      return 'MEDIUM';
+    }
+
+    if (category === 'SUBSCRIPTION') {
+      return 'MEDIUM';
+    }
+
+    return 'LOW';
+  }
+
   async getGoogleGmailSummary(userId: string) {
     try {
       const gmail = await this.getGmailClient(userId);
@@ -481,8 +636,14 @@ try {
     }
   }
 
-  private async getGmailClient(userId: string) {
-    const account = await this.getConnectedGoogleAccount(userId);
+  private async getGmailClient(
+    userId: string,
+    accountId?: string,
+  ) {
+    const account = await this.getConnectedGoogleAccount(
+      userId,
+      accountId,
+    );
 
     this.ensureScope(account, this.GOOGLE_GMAIL_READONLY_SCOPE, 'Gmail');
 
