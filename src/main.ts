@@ -15,6 +15,7 @@ async function bootstrap() {
       'http://localhost:8100',
       'http://localhost:4200',
       'http://localhost:3000',
+      'https://nextstep-ai-mobile.vercel.app',
     ],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
