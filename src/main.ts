@@ -17,6 +17,7 @@ async function bootstrap() {
       'http://localhost:3000',
       'https://nextstep-ai-mobile.vercel.app',
       'https://nextstep-ai-mobile-git-prod-saifk05s-projects.vercel.app',
+      'https://nextstep-ai-backend-mtbs.onrender.com',
     ],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
