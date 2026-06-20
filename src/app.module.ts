@@ -19,6 +19,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { UserModule } from './modules/user/user.module';
 import { TaskModule } from './modules/task/task.module';
+import { IntegrationsModule } from './modules/integrations/integrations.module';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { TaskModule } from './modules/task/task.module';
     UserModule,
     DashboardModule,
     TaskModule,
+    IntegrationsModule,
   ],
 })
 export class AppModule implements NestModule {
@@ -84,6 +86,56 @@ export class AppModule implements NestModule {
       {
         path: 'tasks/(.*)',
         method: RequestMethod.ALL,
+      },
+
+      // Google integration protected routes
+      {
+        path: 'integrations/google/connect/init',
+        method: RequestMethod.POST,
+      },
+      {
+        path: 'integrations/google/connect/verify-otp',
+        method: RequestMethod.POST,
+      },
+      {
+        path: 'integrations/google/connect',
+        method: RequestMethod.GET,
+      },
+      {
+        path: 'integrations/google/accounts',
+        method: RequestMethod.GET,
+      },
+      {
+        path: 'integrations/google/accounts/:id/default',
+        method: RequestMethod.PATCH,
+      },
+      {
+        path: 'integrations/google/accounts/:id',
+        method: RequestMethod.DELETE,
+      },
+      {
+        path: 'integrations/google/status',
+        method: RequestMethod.GET,
+      },
+      {
+        path: 'integrations/google/calendar/events',
+        method: RequestMethod.GET,
+      },
+      {
+        path: 'integrations/google/gmail/status',
+        method: RequestMethod.GET,
+      },
+      {
+        path: 'integrations/google/gmail/messages',
+        method: RequestMethod.GET,
+      },
+      {
+        path: 'integrations/google/gmail/unread',
+        method: RequestMethod.GET,
+      },
+      {
+        path: 'integrations/google/gmail/summary',
+        method: RequestMethod.GET,
       },
     );
   }

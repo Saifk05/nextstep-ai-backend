@@ -220,7 +220,74 @@ export class AuthService {
     }
   }
 
-  async refreshToken(request: RefreshTokenRequest) {
+//   async refreshToken(request: RefreshTokenRequest) {
+//   try {
+//     const { refreshToken } = request;
+
+//     if (!refreshToken) {
+//       throw new BadRequestError(MESSAGES.BAD_REQUEST);
+//     }
+
+//     let decoded: any;
+
+//     try {
+//       decoded = await this.jwtService.verifyAsync(refreshToken);
+//     } catch {
+//       throw new UnauthenticatedError(MESSAGES.INVALID_TOKEN);
+//     }
+
+//     const user = await this.userService.findOne({
+//       _id: decoded.sub,
+//     });
+
+//     if (!user || user.refreshToken !== refreshToken) {
+//       throw new UnauthenticatedError(MESSAGES.INVALID_TOKEN);
+//     }
+
+//     const payload = {
+//       sub: user._id.toString(),
+//       email: user.email,
+//     };
+
+//     const newAccessToken = await this.jwtService.signAsync(payload, {
+//       expiresIn: '15m',
+//     });
+
+//     const newRefreshToken = await this.jwtService.signAsync(payload, {
+//       expiresIn: '7d',
+//     });
+
+//     await this.userService.updateUser(user._id.toString(), {
+//       accessToken: newAccessToken,
+//       refreshToken: newRefreshToken,
+//       status: UserStatus.ONLINE,
+//     });
+
+//     return {
+//       message: MESSAGES.TOKEN_REFRESHED_SUCCESSFULLY,
+//       data: {
+//         accessToken: newAccessToken,
+//         refreshToken: newRefreshToken,
+//       },
+//     };
+//   } catch (error) {
+//     this.logger.error(
+//       'Refresh token failed',
+//       error instanceof Error ? error.stack : JSON.stringify(error),
+//     );
+
+//     if (
+//       error instanceof BadRequestError ||
+//       error instanceof UnauthenticatedError
+//     ) {
+//       throw error;
+//     }
+
+//     throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
+//   }
+// }
+
+async refreshToken(request: RefreshTokenRequest) {
   try {
     const { refreshToken } = request;
 
@@ -231,7 +298,9 @@ export class AuthService {
     let decoded: any;
 
     try {
-      decoded = await this.jwtService.verifyAsync(refreshToken);
+      decoded = await this.jwtService.verifyAsync(refreshToken, {
+        secret: jwtConfig().jwtRefreshSecret,
+      });
     } catch {
       throw new UnauthenticatedError(MESSAGES.INVALID_TOKEN);
     }
@@ -250,11 +319,13 @@ export class AuthService {
     };
 
     const newAccessToken = await this.jwtService.signAsync(payload, {
-      expiresIn: '15m',
+      secret: jwtConfig().jwtSecret,
+      expiresIn: jwtConfig().jwtExpiresIn as any,
     });
 
     const newRefreshToken = await this.jwtService.signAsync(payload, {
-      expiresIn: '7d',
+      secret: jwtConfig().jwtRefreshSecret,
+      expiresIn: jwtConfig().jwtRefreshExpiresIn as any,
     });
 
     await this.userService.updateUser(user._id.toString(), {
@@ -286,5 +357,4 @@ export class AuthService {
     throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
   }
 }
-
 }
