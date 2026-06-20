@@ -11,6 +11,8 @@ import {
   InternalServerError,
   UnauthenticatedError,
 } from '../../common/errors';
+
+import { FirebaseProvider } from '../integrations/providers/firebase/firebase.provider';
 import { UserStatus } from '../user/user.model';
 import { UserService } from '../user/user.service';
 
@@ -35,6 +37,11 @@ interface RefreshTokenRequest {
   refreshToken: string;
 }
 
+interface SocialLoginRequest {
+  provider: 'GOOGLE' | 'FACEBOOK';
+  idToken: string;
+}
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -42,6 +49,7 @@ export class AuthService {
   constructor(
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
+    private readonly firebaseProvider: FirebaseProvider,
   ) {}
 
   async register(request: RegisterRequest) {
@@ -127,50 +135,98 @@ export class AuthService {
         throw new UnauthenticatedError(MESSAGES.INVALID_CREDENTIALS);
       }
 
-      const payload = {
-        sub: user._id.toString(),
-        email: user.email,
-      };
-
-      const accessToken = await this.jwtService.signAsync(payload, {
-        secret: jwtConfig().jwtSecret,
-        expiresIn: jwtConfig().jwtExpiresIn as any,
-      });
-
-      const refreshToken = await this.jwtService.signAsync(payload, {
-        secret: jwtConfig().jwtRefreshSecret,
-        expiresIn: jwtConfig().jwtRefreshExpiresIn as any,
-      });
-
-      const updatedUser = await this.userService.updateUser(
-        user._id.toString(),
-        {
-          accessToken,
-          refreshToken,
-          status: UserStatus.ONLINE,
-          lastLoginAt: new Date(),
-          failedAttempts: 0,
-        },
-      );
-
-      return {
-        message: MESSAGES.LOGIN_SUCCESSFUL,
-        data: {
-          user: {
-            id: user._id,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            email: user.email,
-            phoneNumber: user.phoneNumber,
-            status: updatedUser?.status || UserStatus.ONLINE,
-          },
-          accessToken,
-          refreshToken,
-        },
-      };
+      return this.issueTokens(user);
     } catch (error) {
       this.logger.error(
         `Login failed for email: ${request?.email || 'unknown'}`,
+        error instanceof Error ? error.stack : JSON.stringify(error),
+      );
+
+      if (
+        error instanceof BadRequestError ||
+        error instanceof UnauthenticatedError
+      ) {
+        throw error;
+      }
+
+      throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
+    }
+  }
+
+  async socialLogin(request: SocialLoginRequest) {
+    try {
+      const { provider, idToken } = request;
+
+      if (!provider || !idToken) {
+        throw new BadRequestError(MESSAGES.BAD_REQUEST);
+      }
+
+      if (!['GOOGLE', 'FACEBOOK'].includes(provider)) {
+        throw new BadRequestError('Invalid social login provider');
+      }
+
+      const decodedToken = await this.firebaseProvider.verifyIdToken(idToken);
+
+      const email = decodedToken.email?.toLowerCase().trim();
+
+      if (!email) {
+        throw new UnauthenticatedError('Email not found from social account');
+      }
+
+      const providerId = decodedToken.uid;
+
+      let user = await this.userService.findOne({
+        email,
+      });
+
+      if (!user) {
+        const displayName =
+          decodedToken.name ||
+          decodedToken.email?.split('@')[0] ||
+          'NextStep User';
+
+        const [firstName, ...lastNameParts] = displayName.split(' ');
+
+        user = await this.userService.createUser({
+          firstName: firstName || 'NextStep',
+          lastName: lastNameParts.join(' ') || 'User',
+          email,
+          phoneNumber: '',
+          ...(provider === 'GOOGLE'
+            ? { googleId: providerId }
+            : { facebookId: providerId }),
+        });
+      } else {
+        const update: any = {};
+
+        if (provider === 'GOOGLE' && !user.googleId) {
+          update.googleId = providerId;
+        }
+
+        if (provider === 'FACEBOOK' && !user.facebookId) {
+          update.facebookId = providerId;
+        }
+
+        if (decodedToken.picture && !user.profilePicture) {
+          update.profilePicture = decodedToken.picture;
+        }
+
+        if (Object.keys(update).length) {
+          const updatedUser = await this.userService.updateUser(
+            user._id.toString(),
+            update,
+          );
+
+          if (updatedUser) {
+            user = updatedUser;
+          }
+        }
+      }
+
+      return this.issueTokens(user);
+    } catch (error) {
+      this.logger.error(
+        `Social login failed for provider: ${request?.provider || 'unknown'}`,
         error instanceof Error ? error.stack : JSON.stringify(error),
       );
 
@@ -220,141 +276,92 @@ export class AuthService {
     }
   }
 
-//   async refreshToken(request: RefreshTokenRequest) {
-//   try {
-//     const { refreshToken } = request;
-
-//     if (!refreshToken) {
-//       throw new BadRequestError(MESSAGES.BAD_REQUEST);
-//     }
-
-//     let decoded: any;
-
-//     try {
-//       decoded = await this.jwtService.verifyAsync(refreshToken);
-//     } catch {
-//       throw new UnauthenticatedError(MESSAGES.INVALID_TOKEN);
-//     }
-
-//     const user = await this.userService.findOne({
-//       _id: decoded.sub,
-//     });
-
-//     if (!user || user.refreshToken !== refreshToken) {
-//       throw new UnauthenticatedError(MESSAGES.INVALID_TOKEN);
-//     }
-
-//     const payload = {
-//       sub: user._id.toString(),
-//       email: user.email,
-//     };
-
-//     const newAccessToken = await this.jwtService.signAsync(payload, {
-//       expiresIn: '15m',
-//     });
-
-//     const newRefreshToken = await this.jwtService.signAsync(payload, {
-//       expiresIn: '7d',
-//     });
-
-//     await this.userService.updateUser(user._id.toString(), {
-//       accessToken: newAccessToken,
-//       refreshToken: newRefreshToken,
-//       status: UserStatus.ONLINE,
-//     });
-
-//     return {
-//       message: MESSAGES.TOKEN_REFRESHED_SUCCESSFULLY,
-//       data: {
-//         accessToken: newAccessToken,
-//         refreshToken: newRefreshToken,
-//       },
-//     };
-//   } catch (error) {
-//     this.logger.error(
-//       'Refresh token failed',
-//       error instanceof Error ? error.stack : JSON.stringify(error),
-//     );
-
-//     if (
-//       error instanceof BadRequestError ||
-//       error instanceof UnauthenticatedError
-//     ) {
-//       throw error;
-//     }
-
-//     throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
-//   }
-// }
-
-async refreshToken(request: RefreshTokenRequest) {
-  try {
-    const { refreshToken } = request;
-
-    if (!refreshToken) {
-      throw new BadRequestError(MESSAGES.BAD_REQUEST);
-    }
-
-    let decoded: any;
-
+  async refreshToken(request: RefreshTokenRequest) {
     try {
-      decoded = await this.jwtService.verifyAsync(refreshToken, {
-        secret: jwtConfig().jwtRefreshSecret,
+      const { refreshToken } = request;
+
+      if (!refreshToken) {
+        throw new BadRequestError(MESSAGES.BAD_REQUEST);
+      }
+
+      let decoded: any;
+
+      try {
+        decoded = await this.jwtService.verifyAsync(refreshToken, {
+          secret: jwtConfig().jwtRefreshSecret,
+        });
+      } catch {
+        throw new UnauthenticatedError(MESSAGES.INVALID_TOKEN);
+      }
+
+      const user = await this.userService.findOne({
+        _id: decoded.sub,
       });
-    } catch {
-      throw new UnauthenticatedError(MESSAGES.INVALID_TOKEN);
+
+      if (!user || user.refreshToken !== refreshToken) {
+        throw new UnauthenticatedError(MESSAGES.INVALID_TOKEN);
+      }
+
+      return this.issueTokens(user);
+    } catch (error) {
+      this.logger.error(
+        'Refresh token failed',
+        error instanceof Error ? error.stack : JSON.stringify(error),
+      );
+
+      if (
+        error instanceof BadRequestError ||
+        error instanceof UnauthenticatedError
+      ) {
+        throw error;
+      }
+
+      throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
     }
+  }
 
-    const user = await this.userService.findOne({
-      _id: decoded.sub,
-    });
-
-    if (!user || user.refreshToken !== refreshToken) {
-      throw new UnauthenticatedError(MESSAGES.INVALID_TOKEN);
-    }
-
+  private async issueTokens(user: any) {
     const payload = {
       sub: user._id.toString(),
       email: user.email,
     };
 
-    const newAccessToken = await this.jwtService.signAsync(payload, {
+    const accessToken = await this.jwtService.signAsync(payload, {
       secret: jwtConfig().jwtSecret,
       expiresIn: jwtConfig().jwtExpiresIn as any,
     });
 
-    const newRefreshToken = await this.jwtService.signAsync(payload, {
+    const refreshToken = await this.jwtService.signAsync(payload, {
       secret: jwtConfig().jwtRefreshSecret,
       expiresIn: jwtConfig().jwtRefreshExpiresIn as any,
     });
 
-    await this.userService.updateUser(user._id.toString(), {
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
-      status: UserStatus.ONLINE,
-    });
-
-    return {
-      message: MESSAGES.TOKEN_REFRESHED_SUCCESSFULLY,
-      data: {
-        accessToken: newAccessToken,
-        refreshToken: newRefreshToken,
+    const updatedUser = await this.userService.updateUser(
+      user._id.toString(),
+      {
+        accessToken,
+        refreshToken,
+        status: UserStatus.ONLINE,
+        lastLoginAt: new Date(),
+        failedAttempts: 0,
       },
-    };
-  } catch (error) {
-    this.logger.error(
-      'Refresh token failed',
-      error instanceof Error ? error.stack : JSON.stringify(error),
     );
 
-    if (
-      error instanceof BadRequestError ||
-      error instanceof UnauthenticatedError
-    ) {
-      throw error;
-    }
-
-    throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
+    return {
+      message: MESSAGES.LOGIN_SUCCESSFUL,
+      data: {
+        user: {
+          id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          phoneNumber: user.phoneNumber || '',
+          profilePicture: user.profilePicture || null,
+          status: updatedUser?.status || UserStatus.ONLINE,
+        },
+        accessToken,
+        refreshToken,
+      },
+    };
   }
-}
 }

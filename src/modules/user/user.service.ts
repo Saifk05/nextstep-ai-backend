@@ -11,10 +11,10 @@ export interface CreateUserRequest {
   firstName: string;
   lastName: string;
   email: string;
-  phoneNumber: string;
-  // passwordHash: string;
+  phoneNumber?: string;
   passwordHash?: string;
-googleId?: string;
+  googleId?: string;
+  facebookId?: string;
 }
 
 @Injectable()
@@ -30,9 +30,10 @@ export class UserService {
       firstName: request.firstName.trim(),
       lastName: request.lastName.trim(),
       email: request.email.toLowerCase().trim(),
-      googleId: request.googleId,
-      phoneNumber: request.phoneNumber.trim(),
+      phoneNumber: request.phoneNumber?.trim() || '',
       passwordHash: request.passwordHash,
+      googleId: request.googleId,
+      facebookId: request.facebookId,
       status: UserStatus.OFFLINE,
     });
 

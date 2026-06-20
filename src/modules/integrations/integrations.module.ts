@@ -5,9 +5,12 @@ import {
   ConnectedAccount,
   ConnectedAccountSchema,
 } from './schemas/connected-account.schema';
+
 import { IntegrationsController } from './integrations.controller';
 import { IntegrationsService } from './integrations.service';
 import { GoogleProvider } from './providers/google/google.provider';
+import { FirebaseProvider } from './providers/firebase/firebase.provider';
+
 import { MailModule } from '../../common/mail/mail.module';
 import { UserModule } from '../user/user.module';
 
@@ -23,7 +26,14 @@ import { UserModule } from '../user/user.module';
     ]),
   ],
   controllers: [IntegrationsController],
-  providers: [IntegrationsService, GoogleProvider],
-  exports: [IntegrationsService],
+  providers: [
+    IntegrationsService,
+    GoogleProvider,
+    FirebaseProvider,
+  ],
+  exports: [
+    IntegrationsService,
+    FirebaseProvider,
+  ],
 })
 export class IntegrationsModule {}
