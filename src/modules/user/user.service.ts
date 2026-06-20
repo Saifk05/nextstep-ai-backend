@@ -12,7 +12,9 @@ export interface CreateUserRequest {
   lastName: string;
   email: string;
   phoneNumber: string;
-  passwordHash: string;
+  // passwordHash: string;
+  passwordHash?: string;
+googleId?: string;
 }
 
 @Injectable()
@@ -28,6 +30,7 @@ export class UserService {
       firstName: request.firstName.trim(),
       lastName: request.lastName.trim(),
       email: request.email.toLowerCase().trim(),
+      googleId: request.googleId,
       phoneNumber: request.phoneNumber.trim(),
       passwordHash: request.passwordHash,
       status: UserStatus.OFFLINE,

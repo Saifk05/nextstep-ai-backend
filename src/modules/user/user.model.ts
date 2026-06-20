@@ -38,13 +38,14 @@ export class User {
   email: string;
 
   @Prop({
-    required: true,
+    required: false,
     trim: true,
+    default: '',
   })
   phoneNumber: string;
 
-  @Prop({ required: true })
-  passwordHash: string;
+  @Prop({ required: false })
+  passwordHash?: string;
 
   @Prop({
     unique: true,
@@ -52,6 +53,13 @@ export class User {
     index: true,
   })
   googleId?: string;
+
+  @Prop({
+    unique: true,
+    sparse: true,
+    index: true,
+  })
+  facebookId?: string;
 
   @Prop()
   profilePicture?: string;
@@ -132,8 +140,6 @@ export class User {
     calendarConnected: boolean;
   };
 
-  // ===== TASK STREAK FIELDS =====
-
   @Prop({
     default: 0,
   })
@@ -149,8 +155,6 @@ export class User {
     default: null,
   })
   lastTaskCompletedDate?: Date;
-
-  // ===== LOGIN =====
 
   @Prop()
   lastLoginAt?: Date;
