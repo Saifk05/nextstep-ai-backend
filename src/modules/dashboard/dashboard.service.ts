@@ -18,15 +18,40 @@ export class DashboardService {
 
     this.logger.log(`Fetching dashboard overview for userId: ${userId}`);
 
-    const [user, taskSummary] = await Promise.all([
+    const [user, taskSummary, recentActivity] = await Promise.all([
       this.userService.findById(userId),
       this.taskService.getTaskSummaryData(userId),
+      this.taskService.getRecentTaskActivity(userId),
     ]);
 
     const firstName = user?.firstName || 'User';
     const lastName = user?.lastName || '';
 
     const hasTasks = taskSummary.totalTasks > 0;
+
+    // const allTasks = taskSummary.todayTasks || [];
+
+    // const recentActivity = allTasks
+    //   .filter((task) => task.status === 'COMPLETED' || task.completedAt)
+    //   .sort((a, b) => {
+    //     const dateA = new Date(
+    //       a.completedAt || a.updatedAt || a.createdAt,
+    //     ).getTime();
+
+    //     const dateB = new Date(
+    //       b.completedAt || b.updatedAt || b.createdAt,
+    //     ).getTime();
+
+    //     return dateB - dateA;
+    //   })
+    //   .slice(0, 5)
+    //   .map((task) => ({
+    //     type: 'TASK_COMPLETED',
+    //     title: task.title,
+    //     description: `Completed ${task.title}`,
+    //     date: task.completedAt || task.updatedAt || task.createdAt,
+    //     icon: 'checkmark-circle',
+    //   }));
 
     return {
       success: true,
@@ -134,7 +159,7 @@ export class DashboardService {
           },
         ],
 
-        recentActivity: [],
+        recentActivity,
       },
     };
   }

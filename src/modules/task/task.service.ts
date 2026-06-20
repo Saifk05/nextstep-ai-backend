@@ -481,4 +481,41 @@ export class TaskService {
 
     return previousDate.getTime() === yesterday.getTime();
   }
+
+
+  async getRecentTaskActivity(userId: string) {
+  const tasks = await this.taskModel
+    .find({
+      userId: new Types.ObjectId(userId),
+      isDeleted: false,
+    })
+    .sort({
+      updatedAt: -1,
+    })
+    .limit(5)
+    .lean();
+
+  console.log('Recent Tasks:', tasks);
+
+  return tasks.map((task) => ({
+    type:
+      task.status === TaskStatus.COMPLETED
+        ? 'TASK_COMPLETED'
+        : 'TASK_UPDATED',
+
+    title: task.title,
+
+    description:
+      task.status === TaskStatus.COMPLETED
+        ? `Completed ${task.title}`
+        : `Updated ${task.title}`,
+
+    date: task.completedAt || task.updatedAt || task.createdAt,
+
+    icon:
+      task.status === TaskStatus.COMPLETED
+        ? 'checkmark-circle'
+        : 'create-outline',
+  }));
+}
 }
