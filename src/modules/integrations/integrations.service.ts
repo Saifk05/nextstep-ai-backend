@@ -321,48 +321,233 @@ try {
     };
   }
 
-  async getGoogleCalendarEvents(userId: string) {
-    const account = await this.getConnectedGoogleAccount(userId);
+  // async getGoogleCalendarEvents(userId: string) {
+  //   const account = await this.getConnectedGoogleAccount(userId);
 
-    this.ensureScope(account, this.GOOGLE_CALENDAR_SCOPE, 'Google Calendar');
+  //   this.ensureScope(account, this.GOOGLE_CALENDAR_SCOPE, 'Google Calendar');
 
-    const oauth2Client = await this.getAuthorizedGoogleClient(account);
+  //   const oauth2Client = await this.getAuthorizedGoogleClient(account);
 
-    const calendar = google.calendar({
-      version: 'v3',
-      auth: oauth2Client,
+  //   const calendar = google.calendar({
+  //     version: 'v3',
+  //     auth: oauth2Client,
+  //   });
+
+  //   try {
+  //     const response = await calendar.events.list({
+  //       calendarId: 'primary',
+  //       timeMin: new Date().toISOString(),
+  //       maxResults: 10,
+  //       singleEvents: true,
+  //       orderBy: 'startTime',
+  //     });
+
+  //     const events =
+  //       response.data.items?.map((event) => ({
+  //         id: event.id,
+  //         title: event.summary || 'No title',
+  //         description: event.description || '',
+  //         location: event.location || '',
+  //         start: event.start?.dateTime || event.start?.date || null,
+  //         end: event.end?.dateTime || event.end?.date || null,
+  //         htmlLink: event.htmlLink,
+  //         status: event.status,
+  //       })) || [];
+
+  //     return {
+  //       success: true,
+  //       message: 'Google Calendar events fetched successfully',
+  //       data: events,
+  //     };
+  //   } catch (error) {
+  //     this.handleGoogleApiError(error, 'Google Calendar');
+  //   }
+  // }
+
+
+  async getGoogleCalendarEvents(
+  userId: string,
+  accountId?: string,
+  range = 'today',
+  search?: string,
+  pageToken?: string,
+  limit?: string,
+) {
+  const account = await this.getConnectedGoogleAccount(userId, accountId);
+
+  this.ensureScope(account, this.GOOGLE_CALENDAR_SCOPE, 'Google Calendar');
+
+  const oauth2Client = await this.getAuthorizedGoogleClient(account);
+
+  const calendar = google.calendar({
+    version: 'v3',
+    auth: oauth2Client,
+  });
+
+  const maxResults = Math.min(Number(limit) || 10, 50);
+  const { timeMin, timeMax } = this.getCalendarRange(range);
+
+  try {
+    const response = await calendar.events.list({
+      calendarId: 'primary',
+      timeMin,
+      timeMax,
+      maxResults,
+      pageToken,
+      singleEvents: true,
+      orderBy: 'startTime',
+      q: search?.trim() || undefined,
     });
 
-    try {
-      const response = await calendar.events.list({
-        calendarId: 'primary',
-        timeMin: new Date().toISOString(),
-        maxResults: 10,
-        singleEvents: true,
-        orderBy: 'startTime',
-      });
-
-      const events =
-        response.data.items?.map((event) => ({
-          id: event.id,
+    const events =
+      response.data.items?.map((event) => {
+        const mappedEvent = {
+          id: event.id || '',
           title: event.summary || 'No title',
           description: event.description || '',
           location: event.location || '',
-          start: event.start?.dateTime || event.start?.date || null,
-          end: event.end?.dateTime || event.end?.date || null,
-          htmlLink: event.htmlLink,
-          status: event.status,
-        })) || [];
+          startTime: event.start?.dateTime || event.start?.date || null,
+          endTime: event.end?.dateTime || event.end?.date || null,
+          isAllDay: !!event.start?.date,
+          htmlLink: event.htmlLink || '',
+          status: event.status || '',
+          accountId: account._id.toString(),
+          accountEmail: account.email,
+          category: this.getCalendarEventCategory(event),
+          priority: this.getCalendarEventPriority(event),
+        };
 
-      return {
-        success: true,
-        message: 'Google Calendar events fetched successfully',
-        data: events,
-      };
-    } catch (error) {
-      this.handleGoogleApiError(error, 'Google Calendar');
-    }
+        return mappedEvent;
+      }) || [];
+
+    return {
+      success: true,
+      message: 'Google Calendar events fetched successfully',
+      summary: this.buildCalendarSummary(events),
+      data: events,
+      pagination: {
+        nextPageToken: response.data.nextPageToken || null,
+        limit: maxResults,
+      },
+    };
+  } catch (error) {
+    this.handleGoogleApiError(error, 'Google Calendar');
   }
+}
+
+private getCalendarRange(range?: string) {
+  const now = new Date();
+
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+
+  const end = new Date(start);
+
+  switch (range) {
+    case 'tomorrow':
+      start.setDate(start.getDate() + 1);
+      end.setDate(start.getDate() + 1);
+      break;
+
+    case 'week':
+      end.setDate(start.getDate() + 7);
+      break;
+
+    case 'month':
+      end.setMonth(start.getMonth() + 1);
+      break;
+
+    case 'today':
+    default:
+      end.setDate(start.getDate() + 1);
+      break;
+  }
+
+  return {
+    timeMin: start.toISOString(),
+    timeMax: end.toISOString(),
+  };
+}
+
+private getCalendarEventCategory(event: any): string {
+  const text = `${event.summary || ''} ${event.description || ''} ${
+    event.location || ''
+  }`.toLowerCase();
+
+  if (
+    text.includes('interview') ||
+    text.includes('recruiter') ||
+    text.includes('hiring') ||
+    text.includes('hr')
+  ) {
+    return 'INTERVIEW';
+  }
+
+  if (
+    text.includes('deadline') ||
+    text.includes('due') ||
+    text.includes('submit') ||
+    text.includes('last date')
+  ) {
+    return 'DEADLINE';
+  }
+
+  if (
+    text.includes('flight') ||
+    text.includes('hotel') ||
+    text.includes('travel') ||
+    text.includes('trip') ||
+    text.includes('airport')
+  ) {
+    return 'TRAVEL';
+  }
+
+  if (
+    text.includes('reminder') ||
+    text.includes('follow up') ||
+    text.includes('follow-up')
+  ) {
+    return 'REMINDER';
+  }
+
+  if (
+    text.includes('meeting') ||
+    text.includes('meet') ||
+    text.includes('call') ||
+    text.includes('sync') ||
+    text.includes('discussion')
+  ) {
+    return 'MEETING';
+  }
+
+  return 'PERSONAL';
+}
+
+private getCalendarEventPriority(event: any): string {
+  const category = this.getCalendarEventCategory(event);
+
+  if (category === 'INTERVIEW' || category === 'DEADLINE') {
+    return 'HIGH';
+  }
+
+  if (category === 'MEETING' || category === 'TRAVEL') {
+    return 'MEDIUM';
+  }
+
+  return 'LOW';
+}
+
+private buildCalendarSummary(events: any[]) {
+  return {
+    todayEvents: events.length,
+    upcomingMeetings: events.filter((event) => event.category === 'MEETING')
+      .length,
+    deadlines: events.filter((event) => event.category === 'DEADLINE').length,
+    interviews: events.filter((event) => event.category === 'INTERVIEW')
+      .length,
+  };
+}
+
 
   async getGoogleGmailStatus(userId: string) {
     const account = await this.getConnectedGoogleAccount(userId);

@@ -102,12 +102,33 @@ export class IntegrationsController {
     return this.integrationsService.getGoogleStatus(userId);
   }
 
-  @Get('google/calendar/events')
-  getGoogleCalendarEvents(@Req() req: Request) {
-    const userId = this.getUserIdFromRequest(req);
+  // @Get('google/calendar/events')
+  // getGoogleCalendarEvents(@Req() req: Request) {
+  //   const userId = this.getUserIdFromRequest(req);
 
-    return this.integrationsService.getGoogleCalendarEvents(userId);
-  }
+  //   return this.integrationsService.getGoogleCalendarEvents(userId);
+  // }
+
+  @Get('google/calendar/events')
+getGoogleCalendarEvents(
+  @Req() req: Request,
+  @Query('accountId') accountId?: string,
+  @Query('range') range?: string,
+  @Query('search') search?: string,
+  @Query('pageToken') pageToken?: string,
+  @Query('limit') limit?: string,
+) {
+  const userId = this.getUserIdFromRequest(req);
+
+  return this.integrationsService.getGoogleCalendarEvents(
+    userId,
+    accountId,
+    range,
+    search,
+    pageToken,
+    limit,
+  );
+}
 
   @Get('google/gmail/status')
   getGoogleGmailStatus(@Req() req: Request) {
