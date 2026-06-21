@@ -116,29 +116,29 @@ export class IntegrationsController {
     return this.integrationsService.getGoogleGmailStatus(userId);
   }
 
-  // @Get('google/gmail/messages')
-  // getGoogleGmailMessages(@Req() req: Request) {
-  //   const userId = this.getUserIdFromRequest(req);
 
-  //   return this.integrationsService.getGoogleGmailMessages(userId);
-  // }
+@Get('google/gmail/messages')
+getGoogleGmailMessages(
+  @Req() req: Request,
+  @Query('accountId') accountId?: string,
+  @Query('pageToken') pageToken?: string,
+  @Query('limit') limit?: string,
+  @Query('search') search?: string,
+  @Query('category') category?: string,
+  @Query('days') days?: string,
+) {
+  const userId = this.getUserIdFromRequest(req);
 
-  @Get('google/gmail/messages')
-  getGoogleGmailMessages(
-    @Req() req: Request,
-    @Query('accountId') accountId?: string,
-    @Query('pageToken') pageToken?: string,
-    @Query('limit') limit?: string,
-  ) {
-    const userId = this.getUserIdFromRequest(req);
-
-    return this.integrationsService.getGoogleGmailMessages(
-      userId,
-      accountId,
-      pageToken,
-      limit,
-    );
-  }
+  return this.integrationsService.getGoogleGmailMessages(
+    userId,
+    accountId,
+    pageToken,
+    limit,
+    search,
+    category,
+    days,
+  );
+}
 
   @Get('google/gmail/unread')
   getGoogleUnreadMessages(@Req() req: Request) {

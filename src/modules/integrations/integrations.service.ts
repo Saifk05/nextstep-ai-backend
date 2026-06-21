@@ -381,116 +381,174 @@ try {
   }
 
   async getGoogleGmailMessages(
-    userId: string,
-    accountId?: string,
-    pageToken?: string,
-    limit?: string,
-  ) {
-    try {
-      const gmail = await this.getGmailClient(userId, accountId);
+  userId: string,
+  accountId?: string,
+  pageToken?: string,
+  limit?: string,
+  search?: string,
+  category?: string,
+  days?: string,
+) {
+  try {
+    const gmail = await this.getGmailClient(userId, accountId);
 
-      const maxResults = Math.min(Number(limit) || 20, 50);
+    const maxResults = Math.min(Number(limit) || 20, 50);
+    const safeDays = [7, 30, 90].includes(Number(days)) ? Number(days) : 30;
 
-      const query =
-        'newer_than:30d (interview OR interviewed OR recruiter OR hiring OR HR OR job OR offer OR selected OR shortlisted OR "follow-up" OR "follow up" OR "next steps" OR deadline OR meeting OR subscription OR membership OR renewed OR renewal OR receipt OR payment) -in:spam -in:trash';
+    const query = this.buildGmailQuery(search, category, safeDays);
 
-      const [profile, unread, important, response] = await Promise.all([
-        gmail.users.getProfile({ userId: 'me' }),
+    const [total, unread, important, response] = await Promise.all([
+      gmail.users.messages.list({
+        userId: 'me',
+        q: query,
+        maxResults: 1,
+      }),
 
-        gmail.users.messages.list({
+      gmail.users.messages.list({
+        userId: 'me',
+        q: `${query} is:unread`,
+        maxResults: 1,
+      }),
+
+      gmail.users.messages.list({
+        userId: 'me',
+        q: `${query} is:important`,
+        maxResults: 1,
+      }),
+
+      gmail.users.messages.list({
+        userId: 'me',
+        q: query,
+        maxResults,
+        pageToken,
+      }),
+    ]);
+
+    const messageIds = response.data.messages || [];
+
+    const mappedMessages = await Promise.all(
+      messageIds.map(async (message) => {
+        const detail = await gmail.users.messages.get({
           userId: 'me',
-          labelIds: ['UNREAD'],
-          maxResults: 1,
-        }),
+          id: message.id || '',
+          format: 'metadata',
+          metadataHeaders: ['Subject', 'From', 'Date'],
+        });
 
-        gmail.users.messages.list({
-          userId: 'me',
-          labelIds: ['IMPORTANT'],
-          maxResults: 1,
-        }),
+        const mappedMessage = this.mapGmailMessage(detail.data);
 
-        gmail.users.messages.list({
-          userId: 'me',
-          q: query,
-          maxResults,
-          pageToken,
-        }),
-      ]);
+        return {
+          ...mappedMessage,
+          category: this.getGmailMessageCategory(mappedMessage),
+          priority: this.getGmailMessagePriority(mappedMessage),
+        };
+      }),
+    );
 
-      const messageIds = response.data.messages || [];
+const safeCategory = category?.toUpperCase() || 'ALL';
 
-      const messages = await Promise.all(
-        messageIds.map(async (message) => {
-          const detail = await gmail.users.messages.get({
-            userId: 'me',
-            id: message.id || '',
-            format: 'metadata',
-            metadataHeaders: ['Subject', 'From', 'Date'],
-          });
-
-          const mappedMessage = this.mapGmailMessage(detail.data);
-
-          return {
-            ...mappedMessage,
-            category: this.getGmailMessageCategory(mappedMessage),
-            priority: this.getGmailMessagePriority(mappedMessage),
-          };
-        }),
-      );
-
-      return {
-        success: true,
-        message: 'Gmail messages fetched successfully',
-        summary: {
-          totalEmails: profile.data.messagesTotal || 0,
-          unreadEmails: unread.data.resultSizeEstimate || 0,
-          importantEmails: important.data.resultSizeEstimate || 0,
-        },
-        data: messages,
-        pagination: {
-          nextPageToken: response.data.nextPageToken || null,
-          resultSizeEstimate: response.data.resultSizeEstimate || 0,
-          limit: maxResults,
-        },
-      };
-    } catch (error) {
-      this.handleGoogleApiError(error, 'Gmail');
-    }
+const messages = mappedMessages.filter((email) => {
+  if (this.isUselessEmail(email)) {
+    return false;
   }
 
-  // async getGoogleGmailMessages(userId: string) {
-  //   try {
-  //     const gmail = await this.getGmailClient(userId);
+  if (safeCategory !== 'ALL' && email.category !== safeCategory) {
+    return false;
+  }
 
-  //     const response = await gmail.users.messages.list({
-  //       userId: 'me',
-  //       maxResults: 20,
-  //     });
+  return true;
+});
 
-  //     const messageIds = response.data.messages || [];
+    return {
+      success: true,
+      message: 'Gmail messages fetched successfully',
+      summary: {
+        totalEmails: total.data.resultSizeEstimate || 0,
+        unreadEmails: unread.data.resultSizeEstimate || 0,
+        importantEmails: important.data.resultSizeEstimate || 0,
+      },
+      data: messages,
+      pagination: {
+        nextPageToken: response.data.nextPageToken || null,
+        resultSizeEstimate: response.data.resultSizeEstimate || 0,
+        limit: maxResults,
+      },
+    };
+  } catch (error) {
+    this.handleGoogleApiError(error, 'Gmail');
+  }
+}
 
-  //     const messages = await Promise.all(
-  //       messageIds.map(async (message) => {
-  //         const detail = await gmail.users.messages.get({
-  //           userId: 'me',
-  //           id: message.id || '',
-  //           format: 'metadata',
-  //           metadataHeaders: ['Subject', 'From', 'Date'],
-  //         });
+private buildGmailQuery(
+  search?: string,
+  category?: string,
+  days = 30,
+): string {
+  const baseFilters = [
+    `newer_than:${days}d`,
+    '-in:spam',
+    '-in:trash',
+    '-(quora OR digest OR newsletter OR promotion OR unsubscribe)',
+  ];
 
-  //         return this.mapGmailMessage(detail.data);
-  //       }),
-  //     );
+  const categoryQueries: Record<string, string> = {
+    ALL:
+      '(interview OR interviewed OR recruiter OR hiring OR HR OR job OR offer OR selected OR shortlisted OR "follow-up" OR "follow up" OR "next steps" OR deadline OR meeting OR "payment failed" OR "payment unsuccessful" OR renewal OR subscription OR receipt OR invoice OR bill OR order OR delivered OR shipped OR shipment OR tracking OR "out for delivery")',
 
-  //     return {
-  //       success: true,
-  //       message: 'Gmail messages fetched successfully',
-  //       data: messages,
-  //     };
-  //   } catch (error) {
-  //     this.handleGoogleApiError(error, 'Gmail');
-  //   }
-  // }
+    INTERVIEW:
+      '(interview OR interviewed OR recruiter OR hiring OR HR OR job OR offer OR selected OR shortlisted OR "follow-up" OR "follow up" OR "next steps")',
+
+    ORDER:
+      '(order OR ordered OR delivered OR shipped OR shipment OR tracking OR invoice OR receipt OR "out for delivery" OR amazon OR myntra OR flipkart)',
+
+    SUBSCRIPTION:
+      '(subscription OR membership OR renewed OR renewal OR netflix OR "amazon prime" OR "google play")',
+
+    PAYMENT:
+      '("payment failed" OR "payment unsuccessful" OR paid OR payment OR bill OR invoice OR receipt)',
+
+    MEETING:
+      '(meeting OR "calendar invite" OR invitation OR schedule OR scheduled)',
+
+    DEADLINE:
+      '(deadline OR "due date" OR "last date" OR "final reminder")',
+  };
+
+  const safeCategory = category?.toUpperCase() || 'ALL';
+  const categoryQuery = categoryQueries[safeCategory] || categoryQueries.ALL;
+
+  const safeSearch = search?.trim();
+
+  if (safeSearch) {
+    baseFilters.push(`"${safeSearch.replace(/"/g, '')}"`);
+  }
+
+  return [...baseFilters, categoryQuery].join(' ');
+}
+
+private isUselessEmail(email: any): boolean {
+  const text = `${email.subject || ''} ${email.from || ''} ${
+    email.snippet || ''
+  }`.toLowerCase();
+
+  const blockedKeywords = [
+    'quora',
+    'digest',
+    'newsletter',
+    'unsubscribe',
+    'facebook',
+    'instagram',
+    'twitter',
+    'x.com',
+    'reddit',
+    'medium',
+    'promotional',
+    'promotion',
+    'marketing',
+  ];
+
+  return blockedKeywords.some((word) => text.includes(word));
+}
 
   async getGoogleUnreadMessages(userId: string) {
     const gmail = await this.getGmailClient(userId);
@@ -548,6 +606,33 @@ try {
     }
 
     if (
+  text.includes('payment failed') ||
+  text.includes('payment unsuccessful') ||
+  text.includes('last payment attempt') ||
+  text.includes('bill payment') ||
+  text.includes('recharge') ||
+  text.includes('paid') ||
+  text.includes('payment')
+) {
+  return 'PAYMENT';
+}
+
+if (
+  text.includes('order') ||
+  text.includes('ordered') ||
+  text.includes('delivered') ||
+  text.includes('shipped') ||
+  text.includes('shipment') ||
+  text.includes('tracking') ||
+  text.includes('out for delivery') ||
+  text.includes('amazon') ||
+  text.includes('myntra') ||
+  text.includes('flipkart')
+) {
+  return 'ORDER';
+}
+
+    if (
       text.includes('subscription') ||
       text.includes('membership') ||
       text.includes('renewed') ||
@@ -598,6 +683,14 @@ try {
     }
 
     if (category === 'SUBSCRIPTION') {
+      return 'MEDIUM';
+    }
+
+    if (category === 'PAYMENT') {
+      return 'MEDIUM';
+    }
+
+    if (category === 'ORDER') {
       return 'MEDIUM';
     }
 
