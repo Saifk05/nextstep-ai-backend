@@ -7,6 +7,7 @@ import {
 import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { JwtModule } from '@nestjs/jwt';
+import { ScheduleModule } from '@nestjs/schedule';
 
 import appConfig from './config/app.config';
 import databaseConfig from './config/database.config';
@@ -29,14 +30,16 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
       load: [appConfig, databaseConfig, jwtConfig],
     }),
 
-    MongooseModule.forRoot(databaseConfig().mongoUri),
+    ScheduleModule.forRoot(),
 
+    MongooseModule.forRoot(databaseConfig().mongoUri),
     JwtModule.register({
       secret: jwtConfig().jwtSecret,
       signOptions: {
         expiresIn: jwtConfig().jwtExpiresIn as any,
       },
     }),
+    
 
     LoggerModule,
 

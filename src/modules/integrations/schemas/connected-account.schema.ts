@@ -77,6 +77,11 @@ export class ConnectedAccount {
   @Prop()
   lastSyncAt?: Date;
 
+
+  @Prop()
+  lastNotificationSyncedAt?: Date;
+
+
   // Keep this temporarily for old data compatibility
   @Prop()
   lastSyncedAt?: Date;

@@ -372,6 +372,7 @@ try {
   search?: string,
   pageToken?: string,
   limit?: string,
+  after?: Date
 ) {
   const account = await this.getConnectedGoogleAccount(userId, accountId);
 
@@ -397,6 +398,7 @@ try {
       singleEvents: true,
       orderBy: 'startTime',
       q: search?.trim() || undefined,
+      updatedMin: after?.toISOString(),
     });
 
     const events =
@@ -573,6 +575,7 @@ private buildCalendarSummary(events: any[]) {
   search?: string,
   category?: string,
   days?: string,
+   after?: Date,
 ) {
   try {
     const gmail = await this.getGmailClient(userId, accountId);
@@ -580,7 +583,7 @@ private buildCalendarSummary(events: any[]) {
     const maxResults = Math.min(Number(limit) || 20, 50);
     const safeDays = [7, 30, 90].includes(Number(days)) ? Number(days) : 30;
 
-    const query = this.buildGmailQuery(search, category, safeDays);
+    const query = this.buildGmailQuery(search, category, safeDays, after);
 
     const [total, unread, important, response] = await Promise.all([
       gmail.users.messages.list({
@@ -668,9 +671,12 @@ private buildGmailQuery(
   search?: string,
   category?: string,
   days = 30,
+  after?: Date,
 ): string {
   const baseFilters = [
-    `newer_than:${days}d`,
+    after
+      ? `after:${Math.floor(after.getTime() / 1000)}`
+      : `newer_than:${days}d`,
     '-in:spam',
     '-in:trash',
     '-(quora OR digest OR newsletter OR promotion OR unsubscribe)',
@@ -1260,6 +1266,40 @@ async verifyGoogleConnectOtp(
     message: 'OTP verified successfully',
   };
 }
+async getNotificationGmailData(
+  userId: string,
+  accountId: string,
+  after?: Date,
+) {
+  const response = await this.getGoogleGmailMessages(
+    userId,
+    accountId,
+    undefined,
+    '50',
+    undefined,
+    undefined,
+    undefined,
+    after,
+  );
 
-  
+  return response?.data || [];
+}
+
+async getNotificationCalendarData(
+  userId: string,
+  accountId: string,
+  after?: Date,
+) {
+  const response = await this.getGoogleCalendarEvents(
+    userId,
+    accountId,
+    'today',
+    undefined,
+    undefined,
+    '50',
+    after,
+  );
+
+  return response?.data || [];
+} 
 }

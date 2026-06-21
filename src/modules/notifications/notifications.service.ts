@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 
 import {
   Notification,
@@ -24,10 +24,12 @@ export class NotificationsService {
       20,
     );
 
-    const query: any = { userId };
+    const query: any = {
+      userId: new Types.ObjectId(userId),
+    };
 
-    if (cursor) {
-      query._id = { $lt: cursor };
+    if (cursor && Types.ObjectId.isValid(cursor)) {
+      query._id = { $lt: new Types.ObjectId(cursor) };
     }
 
     const notifications = await this.notificationModel
@@ -58,8 +60,8 @@ export class NotificationsService {
   async markAsRead(userId: string, notificationId: string) {
     return this.notificationModel.findOneAndUpdate(
       {
-        _id: notificationId,
-        userId,
+        _id: new Types.ObjectId(notificationId),
+        userId: new Types.ObjectId(userId),
       },
       {
         isRead: true,
@@ -72,7 +74,7 @@ export class NotificationsService {
   async markAllAsRead(userId: string) {
     return this.notificationModel.updateMany(
       {
-        userId,
+        userId: new Types.ObjectId(userId),
         isRead: false,
       },
       {
@@ -84,8 +86,8 @@ export class NotificationsService {
 
   async delete(userId: string, notificationId: string) {
     return this.notificationModel.findOneAndDelete({
-      _id: notificationId,
-      userId,
+      _id: new Types.ObjectId(notificationId),
+      userId: new Types.ObjectId(userId),
     });
   }
 }

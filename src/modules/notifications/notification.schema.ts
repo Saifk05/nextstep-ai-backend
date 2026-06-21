@@ -43,6 +43,27 @@ export class Notification {
 
   @Prop({ default: null })
   readAt?: Date;
+
+  @Prop({
+  default: null,
+  index: true,
+    })
+    externalId?: string;
+
+    @Prop({
+    default: null,
+    unique: true,
+    sparse: true,
+    index: true,
+    })
+    uniqueKey?: string;
+
+    @Prop({
+    type: Types.ObjectId,
+    ref: 'ConnectedAccount',
+    default: null,
+    })
+    accountId?: Types.ObjectId;
 }
 
 export const NotificationSchema = SchemaFactory.createForClass(Notification);
