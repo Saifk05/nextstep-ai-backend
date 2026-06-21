@@ -20,6 +20,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { UserModule } from './modules/user/user.module';
 import { TaskModule } from './modules/task/task.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
     DashboardModule,
     TaskModule,
     IntegrationsModule,
+    NotificationsModule,
   ],
 })
 export class AppModule implements NestModule {
@@ -136,6 +138,15 @@ export class AppModule implements NestModule {
       {
         path: 'integrations/google/gmail/summary',
         method: RequestMethod.GET,
+      },
+      // Notifications protected routes
+      {
+        path: 'notifications',
+        method: RequestMethod.ALL,
+      },
+      {
+        path: 'notifications/(.*)',
+        method: RequestMethod.ALL,
       },
     );
   }
