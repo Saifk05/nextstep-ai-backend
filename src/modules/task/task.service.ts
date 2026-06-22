@@ -484,18 +484,22 @@ export class TaskService {
 
 
   async getRecentTaskActivity(userId: string) {
+  const { start, end } = this.getTodayRange();
+
   const tasks = await this.taskModel
     .find({
       userId: new Types.ObjectId(userId),
       isDeleted: false,
+      updatedAt: {
+        $gte: start,
+        $lt: end,
+      },
     })
     .sort({
       updatedAt: -1,
     })
     .limit(5)
     .lean();
-
-  console.log('Recent Tasks:', tasks);
 
   return tasks.map((task) => ({
     type:
