@@ -45,25 +45,28 @@ export class Notification {
   readAt?: Date;
 
   @Prop({
-  default: null,
-  index: true,
-    })
-    externalId?: string;
+    default: null,
+    index: true,
+  })
+  externalId?: string;
 
-    @Prop({
+  @Prop({
     default: null,
     unique: true,
     sparse: true,
     index: true,
-    })
-    uniqueKey?: string;
+  })
+  uniqueKey?: string;
 
-    @Prop({
+  @Prop({
     type: Types.ObjectId,
     ref: 'ConnectedAccount',
     default: null,
-    })
-    accountId?: Types.ObjectId;
+  })
+  accountId?: Types.ObjectId;
 }
 
 export const NotificationSchema = SchemaFactory.createForClass(Notification);
+
+NotificationSchema.index({ userId: 1, isRead: 1, createdAt: -1 });
+NotificationSchema.index({ userId: 1, source: 1, createdAt: -1 });

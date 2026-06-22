@@ -12,6 +12,11 @@ import {
   DecodedIdToken,
 } from 'firebase-admin/auth';
 
+import {
+  getMessaging,
+  Messaging,
+} from 'firebase-admin/messaging';
+
 @Injectable()
 export class FirebaseProvider implements OnModuleInit {
   constructor(
@@ -64,5 +69,9 @@ export class FirebaseProvider implements OnModuleInit {
 
   getAuth() {
     return getAuth();
+  }
+
+  getMessaging(): Messaging {
+    return getMessaging();
   }
 }

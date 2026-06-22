@@ -1,13 +1,15 @@
 import {
+  Body,
   Controller,
   Delete,
   Get,
   Param,
   Patch,
+  Post,
   Query,
   Req,
 } from '@nestjs/common';
-
+import { Types } from 'mongoose';
 import { NotificationsService } from './notifications.service';
 
 @Controller('notifications')
@@ -15,6 +17,29 @@ export class NotificationsController {
   constructor(
     private readonly notificationsService: NotificationsService,
   ) {}
+
+  @Post('register-device')
+  registerDevice(@Req() req: any, @Body() body: any) {
+    return this.notificationsService.registerDevice(req.user.userId, body);
+  }
+
+  @Delete('unregister-device')
+  unregisterDevice(@Req() req: any, @Body('token') token: string) {
+    return this.notificationsService.unregisterDevice(req.user.userId, token);
+  }
+
+  @Post('test')
+  sendTestNotification(@Req() req: any) {
+    return this.notificationsService.createNotification({
+      userId: new Types.ObjectId(req.user.userId),
+      title: 'NextStep AI Test',
+      message: 'FCM push notification is working',
+      source: 'SYSTEM',
+      priority: 'HIGH',
+      isPersistent: true,
+      isRead: false,
+    });
+  }
 
   @Get()
   getNotifications(

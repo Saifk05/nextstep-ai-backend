@@ -7,6 +7,11 @@ import {
 } from './notification.schema';
 
 import {
+  NotificationDevice,
+  NotificationDeviceSchema,
+} from './notification-device.schema';
+
+import {
   ConnectedAccount,
   ConnectedAccountSchema,
 } from '../integrations/schemas/connected-account.schema';
@@ -22,6 +27,7 @@ import { IntegrationsModule } from '../integrations/integrations.module';
 
     MongooseModule.forFeature([
       { name: Notification.name, schema: NotificationSchema },
+      { name: NotificationDevice.name, schema: NotificationDeviceSchema },
       { name: ConnectedAccount.name, schema: ConnectedAccountSchema },
     ]),
   ],
