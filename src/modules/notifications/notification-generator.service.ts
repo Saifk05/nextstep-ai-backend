@@ -216,19 +216,19 @@ export class NotificationGeneratorService {
       return;
     }
 
-    await this.notificationsService.createNotification({
-      userId: payload.userId,
-      title: payload.title,
-      message: payload.message,
-      source: payload.source,
-      priority: payload.priority,
-      externalId: payload.externalId,
-      uniqueKey: payload.uniqueKey,
-      accountId: payload.accountId,
-      metadata: payload.metadata || {},
-      isPersistent: true,
-      isRead: false,
-    });
+await this.notificationsService.createNotification({
+  userId: payload.userId,
+  title: payload.title,
+  message: payload.message,
+  source: payload.source,
+  priority: payload.priority,
+  externalId: payload.externalId,
+  uniqueKey: payload.uniqueKey,
+  accountId: payload.accountId,
+  metadata: payload.metadata || {},
+  isPersistent: true,
+  isRead: false,
+});
 
     this.logger.log(
       `Notification created and pushed | source: ${payload.source} | title: ${payload.title}`,
