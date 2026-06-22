@@ -28,21 +28,21 @@ export class NotificationsController {
     return this.notificationsService.unregisterDevice(req.user.userId, token);
   }
 
-@Post('test')
-sendTestNotification(@Req() req: any) {
-  const timestamp = Date.now();
+// @Post('test')
+// sendTestNotification(@Req() req: any) {
+//   const timestamp = Date.now();
 
-  return this.notificationsService.createNotification({
-    userId: new Types.ObjectId(req.user.userId),
-    title: 'NextStep AI Test',
-    message: 'FCM push notification is working',
-    source: 'SYSTEM',
-    priority: 'HIGH',
-    isPersistent: true,
-    isRead: false,
-    uniqueKey: `${req.user.userId}_SYSTEM_TEST_${timestamp}`,
-  });
-}
+//   return this.notificationsService.createNotification({
+//     userId: new Types.ObjectId(req.user.userId),
+//     title: 'NextStep AI Test',
+//     message: 'FCM push notification is working',
+//     source: 'SYSTEM',
+//     priority: 'HIGH',
+//     isPersistent: true,
+//     isRead: false,
+//     uniqueKey: `${req.user.userId}_SYSTEM_TEST_${timestamp}`,
+//   });
+// }
 
   @Get()
   getNotifications(

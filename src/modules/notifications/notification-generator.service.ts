@@ -4,6 +4,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 
 import { Notification } from './notification.schema';
+import { NotificationsService } from './notifications.service';
 import { IntegrationsService } from '../integrations/integrations.service';
 
 import {
@@ -24,16 +25,18 @@ export class NotificationGeneratorService {
     private readonly notificationModel: Model<Notification>,
 
     private readonly integrationsService: IntegrationsService,
+
+    private readonly notificationsService: NotificationsService,
   ) {
     this.logger.log('NotificationGeneratorService initialized');
   }
 
-  // TEMP: 1 minute for testing. Change back to */15 after testing.
-  @Cron('*/1 * * * *')
-  async runFastNotificationSync() {
-    this.logger.log('1 minute notification cron running');
-    await this.generateNotifications('FAST_1_MIN');
-  }
+  // TEMP: enable only for testing
+  // @Cron('*/1 * * * *')
+  // async runFastNotificationSync() {
+  //   this.logger.log('1 minute notification cron running');
+  //   await this.generateNotifications('FAST_1_MIN');
+  // }
 
   @Cron('0 */3 * * *')
   async runRecoveryNotificationSync() {
@@ -154,7 +157,9 @@ export class NotificationGeneratorService {
       account.lastNotificationSyncedAt,
     );
 
-    this.logger.log(`Calendar events found for ${account.email}: ${events.length}`);
+    this.logger.log(
+      `Calendar events found for ${account.email}: ${events.length}`,
+    );
 
     const now = new Date();
     const next24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
@@ -167,7 +172,9 @@ export class NotificationGeneratorService {
       const startTime = event.startTime ? new Date(event.startTime) : null;
 
       if (!startTime) {
-        this.logger.log(`Skipping calendar event with no start time: ${event.title}`);
+        this.logger.log(
+          `Skipping calendar event with no start time: ${event.title}`,
+        );
         continue;
       }
 
@@ -209,7 +216,7 @@ export class NotificationGeneratorService {
       return;
     }
 
-    await this.notificationModel.create({
+    await this.notificationsService.createNotification({
       userId: payload.userId,
       title: payload.title,
       message: payload.message,
@@ -224,7 +231,7 @@ export class NotificationGeneratorService {
     });
 
     this.logger.log(
-      `Notification created | source: ${payload.source} | title: ${payload.title}`,
+      `Notification created and pushed | source: ${payload.source} | title: ${payload.title}`,
     );
   }
 
