@@ -32,11 +32,11 @@ export class NotificationGeneratorService {
   }
 
   // TEMP: enable only for testing
-  // @Cron('*/1 * * * *')
-  // async runFastNotificationSync() {
-  //   this.logger.log('1 minute notification cron running');
-  //   await this.generateNotifications('FAST_1_MIN');
-  // }
+  @Cron('*/1 * * * *')
+  async runFastNotificationSync() {
+    this.logger.log('1 minute notification cron running');
+    await this.generateNotifications('FAST_1_MIN');
+  }
 
   @Cron('0 */3 * * *')
   async runRecoveryNotificationSync() {
