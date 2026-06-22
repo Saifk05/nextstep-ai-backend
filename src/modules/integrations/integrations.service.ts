@@ -650,16 +650,27 @@ const messages = mappedMessages.filter((email) => {
     return {
       success: true,
       message: 'Gmail messages fetched successfully',
+      // summary: {
+      //   totalEmails: total.data.resultSizeEstimate || 0,
+      //   unreadEmails: unread.data.resultSizeEstimate || 0,
+      //   importantEmails: important.data.resultSizeEstimate || 0,
+      // },
+
       summary: {
-        totalEmails: total.data.resultSizeEstimate || 0,
-        unreadEmails: unread.data.resultSizeEstimate || 0,
-        importantEmails: important.data.resultSizeEstimate || 0,
-      },
+      totalEmails: messages.length,
+      unreadEmails: messages.filter((email) => email.isUnread).length,
+      importantEmails: messages.filter(
+        (email) =>
+          email.priority === 'HIGH' ||
+          email.category === 'INTERVIEW' ||
+          email.category === 'DEADLINE',
+      ).length,
+    },
       data: messages,
       pagination: {
         nextPageToken: response.data.nextPageToken || null,
-        resultSizeEstimate: response.data.resultSizeEstimate || 0,
-        limit: maxResults,
+          resultSizeEstimate: messages.length,
+          limit: maxResults,
       },
     };
   } catch (error) {
@@ -887,39 +898,6 @@ if (
 
     return 'LOW';
   }
-
-  // async getGoogleGmailSummary(userId: string) {
-  //   try {
-  //     const gmail = await this.getGmailClient(userId);
-
-  //     const [profile, unread, important] = await Promise.all([
-  //       gmail.users.getProfile({ userId: 'me' }),
-  //       gmail.users.messages.list({
-  //         userId: 'me',
-  //         labelIds: ['UNREAD'],
-  //         maxResults: 1,
-  //       }),
-  //       gmail.users.messages.list({
-  //         userId: 'me',
-  //         labelIds: ['IMPORTANT'],
-  //         maxResults: 1,
-  //       }),
-  //     ]);
-
-  //     return {
-  //       success: true,
-  //       message: 'Gmail summary fetched successfully',
-  //       data: {
-  //         totalEmails: profile.data.messagesTotal || 0,
-  //         unreadEmails: unread.data.resultSizeEstimate || 0,
-  //         importantEmails: important.data.resultSizeEstimate || 0,
-  //       },
-  //     };
-  //   } catch (error) {
-  //     this.handleGoogleApiError(error, 'Gmail');
-  //   }
-  // }
-
 
   async getGoogleGmailSummary(userId: string, accountId?: string) {
   try {
