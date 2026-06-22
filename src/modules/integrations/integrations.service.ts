@@ -888,37 +888,116 @@ if (
     return 'LOW';
   }
 
-  async getGoogleGmailSummary(userId: string) {
-    try {
-      const gmail = await this.getGmailClient(userId);
+  // async getGoogleGmailSummary(userId: string) {
+  //   try {
+  //     const gmail = await this.getGmailClient(userId);
 
-      const [profile, unread, important] = await Promise.all([
-        gmail.users.getProfile({ userId: 'me' }),
-        gmail.users.messages.list({
-          userId: 'me',
-          labelIds: ['UNREAD'],
-          maxResults: 1,
-        }),
-        gmail.users.messages.list({
-          userId: 'me',
-          labelIds: ['IMPORTANT'],
-          maxResults: 1,
-        }),
-      ]);
+  //     const [profile, unread, important] = await Promise.all([
+  //       gmail.users.getProfile({ userId: 'me' }),
+  //       gmail.users.messages.list({
+  //         userId: 'me',
+  //         labelIds: ['UNREAD'],
+  //         maxResults: 1,
+  //       }),
+  //       gmail.users.messages.list({
+  //         userId: 'me',
+  //         labelIds: ['IMPORTANT'],
+  //         maxResults: 1,
+  //       }),
+  //     ]);
 
-      return {
-        success: true,
-        message: 'Gmail summary fetched successfully',
-        data: {
-          totalEmails: profile.data.messagesTotal || 0,
-          unreadEmails: unread.data.resultSizeEstimate || 0,
-          importantEmails: important.data.resultSizeEstimate || 0,
-        },
-      };
-    } catch (error) {
-      this.handleGoogleApiError(error, 'Gmail');
-    }
+  //     return {
+  //       success: true,
+  //       message: 'Gmail summary fetched successfully',
+  //       data: {
+  //         totalEmails: profile.data.messagesTotal || 0,
+  //         unreadEmails: unread.data.resultSizeEstimate || 0,
+  //         importantEmails: important.data.resultSizeEstimate || 0,
+  //       },
+  //     };
+  //   } catch (error) {
+  //     this.handleGoogleApiError(error, 'Gmail');
+  //   }
+  // }
+
+
+  async getGoogleGmailSummary(userId: string, accountId?: string) {
+  try {
+    const gmail = await this.getGmailClient(userId, accountId);
+
+    const now = new Date();
+
+    const istNow = new Date(
+      now.toLocaleString('en-US', {
+        timeZone: 'Asia/Kolkata',
+      }),
+    );
+
+    const istStart = new Date(istNow);
+    istStart.setHours(0, 0, 0, 0);
+
+    const istEnd = new Date(istStart);
+    istEnd.setDate(istEnd.getDate() + 1);
+
+    const utcStart = new Date(
+      istStart.getTime() - 5.5 * 60 * 60 * 1000,
+    );
+
+    const utcEnd = new Date(
+      istEnd.getTime() - 5.5 * 60 * 60 * 1000,
+    );
+
+    const startTimestamp = Math.floor(utcStart.getTime() / 1000);
+    const endTimestamp = Math.floor(utcEnd.getTime() / 1000);
+
+    const baseQuery = `in:inbox after:${startTimestamp} before:${endTimestamp} -in:spam -in:trash`;
+
+    const response = await gmail.users.messages.list({
+      userId: 'me',
+      q: baseQuery,
+      maxResults: 5,
+    });
+
+    const messageIds = response.data.messages || [];
+
+    const emails = await Promise.all(
+      messageIds.map(async (message) => {
+        const detail = await gmail.users.messages.get({
+          userId: 'me',
+          id: message.id || '',
+          format: 'metadata',
+          metadataHeaders: ['Subject', 'From', 'Date'],
+        });
+
+        const mappedMessage = this.mapGmailMessage(detail.data);
+
+        return {
+          ...mappedMessage,
+          category: this.getGmailMessageCategory(mappedMessage),
+          priority: this.getGmailMessagePriority(mappedMessage),
+        };
+      }),
+    );
+
+    return {
+      success: true,
+      message: 'Gmail summary fetched successfully',
+      data: {
+        totalEmails: emails.length,
+        unreadEmails: emails.filter((email) => email.isUnread).length,
+        importantEmails: emails.filter(
+          (email) =>
+            email.priority === 'HIGH' ||
+            email.category === 'INTERVIEW' ||
+            email.category === 'DEADLINE',
+        ).length,
+        emails,
+      },
+    };
+  } catch (error) {
+    this.handleGoogleApiError(error, 'Gmail');
   }
+}
 
   private async getGmailClient(
     userId: string,

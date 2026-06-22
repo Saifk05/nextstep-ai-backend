@@ -25,33 +25,7 @@ export class DashboardService {
     ]);
 
     const firstName = user?.firstName || 'User';
-    const lastName = user?.lastName || '';
-
     const hasTasks = taskSummary.totalTasks > 0;
-
-    // const allTasks = taskSummary.todayTasks || [];
-
-    // const recentActivity = allTasks
-    //   .filter((task) => task.status === 'COMPLETED' || task.completedAt)
-    //   .sort((a, b) => {
-    //     const dateA = new Date(
-    //       a.completedAt || a.updatedAt || a.createdAt,
-    //     ).getTime();
-
-    //     const dateB = new Date(
-    //       b.completedAt || b.updatedAt || b.createdAt,
-    //     ).getTime();
-
-    //     return dateB - dateA;
-    //   })
-    //   .slice(0, 5)
-    //   .map((task) => ({
-    //     type: 'TASK_COMPLETED',
-    //     title: task.title,
-    //     description: `Completed ${task.title}`,
-    //     date: task.completedAt || task.updatedAt || task.createdAt,
-    //     icon: 'checkmark-circle',
-    //   }));
 
     return {
       success: true,
@@ -62,11 +36,8 @@ export class DashboardService {
         user: {
           id: userId,
           firstName,
-          lastName,
           email: user?.email || authUser?.email || null,
-          phoneNumber: user?.phoneNumber || null,
           profilePicture: user?.profilePicture || null,
-          status: user?.status || null,
         },
 
         greeting: {
@@ -82,7 +53,6 @@ export class DashboardService {
           completedTasks: taskSummary.completedTasks,
           pendingTasks: taskSummary.pendingTasks,
           activeGoals: 0,
-          monthlyExpense: 0,
           productivityScore: taskSummary.productivityScore,
         },
 
@@ -123,19 +93,6 @@ export class DashboardService {
             title: 'No goals yet',
             description: 'Create your first goal to track progress.',
             cta: 'Create Goal',
-          },
-        },
-
-        budget: {
-          monthlyIncome: 0,
-          monthlyExpense: 0,
-          monthlySavings: 0,
-          savingsRate: 0,
-          currency: 'INR',
-          emptyState: {
-            title: 'Budget not set',
-            description: 'Add income or expenses to see insights.',
-            cta: 'Set Budget',
           },
         },
 

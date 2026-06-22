@@ -169,10 +169,13 @@ getGoogleGmailMessages(
   }
 
   @Get('google/gmail/summary')
-  getGoogleGmailSummary(@Req() req: Request) {
+  getGoogleGmailSummary(
+    @Req() req: Request,
+    @Query('accountId') accountId?: string,
+  ) {
     const userId = this.getUserIdFromRequest(req);
 
-    return this.integrationsService.getGoogleGmailSummary(userId);
+    return this.integrationsService.getGoogleGmailSummary(userId, accountId);
   }
 
   private getUserIdFromRequest(req: Request): string {
