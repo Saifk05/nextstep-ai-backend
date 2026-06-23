@@ -41,36 +41,46 @@ export class IntegrationsService {
         private readonly userService: UserService,
       ) {}
 
-    generateGoogleAuthUrl(userId: string, accountType?: string) {
-      const oauth2Client = this.googleProvider.getOAuthClient();
+      generateGoogleAuthUrl(
+  userId: string,
+  accountType?: string,
+  platform?: string,
+) {
+  const oauth2Client = this.googleProvider.getOAuthClient();
 
-const safeAccountType =
-  accountType === ConnectedAccountType.WORK
-    ? ConnectedAccountType.WORK
-    : ConnectedAccountType.PERSONAL;
+  const safeAccountType =
+    accountType === ConnectedAccountType.WORK
+      ? ConnectedAccountType.WORK
+      : ConnectedAccountType.PERSONAL;
 
-const state = this.createState(userId, safeAccountType);
+  const safePlatform = platform === 'mobile' ? 'mobile' : 'web';
 
-    const url = oauth2Client.generateAuthUrl({
-      access_type: 'offline',
-      prompt: 'consent',
-      include_granted_scopes: true,
-      scope: [
-        'openid',
-        'email',
-        'profile',
-        this.GOOGLE_CALENDAR_SCOPE,
-        this.GOOGLE_GMAIL_READONLY_SCOPE,
-      ],
-      state,
-    });
+  const state = this.createState(
+    userId,
+    safeAccountType,
+    safePlatform,
+  );
 
-    return {
-      success: true,
-      message: 'Google OAuth URL generated successfully',
-      data: { url },
-    };
-  }
+  const url = oauth2Client.generateAuthUrl({
+    access_type: 'offline',
+    prompt: 'consent',
+    include_granted_scopes: true,
+    scope: [
+      'openid',
+      'email',
+      'profile',
+      this.GOOGLE_CALENDAR_SCOPE,
+      this.GOOGLE_GMAIL_READONLY_SCOPE,
+    ],
+    state,
+  });
+
+  return {
+    success: true,
+    message: 'Google OAuth URL generated successfully',
+    data: { url },
+  };
+}
 
   async handleGoogleCallback(code: string, state: string) {
     if (!code) {
@@ -80,8 +90,8 @@ const state = this.createState(userId, safeAccountType);
     if (!state) {
       throw new BadRequestException('OAuth state is required');
     }
-
-    const { userId, accountType } = this.verifyState(state);
+    const { userId, accountType, platform } = this.verifyState(state);
+    // const { userId, accountType } = this.verifyState(state);
     const userObjectId = new Types.ObjectId(userId);
 
     const oauth2Client = this.googleProvider.getOAuthClient();
@@ -163,7 +173,10 @@ try {
     );
 
     const frontendUrl =
-      this.configService.get<string>('FRONTEND_URL') || 'http://localhost:8100';
+      platform === 'mobile'
+        ? 'nextstepai://'
+        : this.configService.get<string>('FRONTEND_URL') ||
+          'http://localhost:8100';
 
     return `${frontendUrl}/settings?google=connected`;
   }
@@ -1183,60 +1196,99 @@ if (
   );
 }
 
-    private createState(
-      userId: string,
-      accountType: ConnectedAccountType,
-    ): string {
-      const payload = {
-        userId,
-        accountType,
-        timestamp: Date.now(),
-      };
+private createState(
+  userId: string,
+  accountType: ConnectedAccountType,
+  platform: 'web' | 'mobile' = 'web',
+): string {
+  const payload = {
+    userId,
+    accountType,
+    platform,
+    timestamp: Date.now(),
+  };
 
-    const payloadBase64 = Buffer.from(JSON.stringify(payload)).toString(
-      'base64url',
-    );
+  const payloadBase64 = Buffer.from(JSON.stringify(payload)).toString(
+    'base64url',
+  );
 
-    const signature = this.signState(payloadBase64);
+  const signature = this.signState(payloadBase64);
 
-    return `${payloadBase64}.${signature}`;
+  return `${payloadBase64}.${signature}`;
+}
+
+  private verifyState(state: string): {
+  userId: string;
+  accountType: ConnectedAccountType;
+  platform: 'web' | 'mobile';
+} {
+  const [payloadBase64, signature] = state.split('.');
+
+  if (!payloadBase64 || !signature) {
+    throw new UnauthorizedException('Invalid OAuth state');
   }
 
+  const expectedSignature = this.signState(payloadBase64);
 
-    private verifyState(state: string): {
-      userId: string;
-      accountType: ConnectedAccountType;
-    } {
-    const [payloadBase64, signature] = state.split('.');
-
-    if (!payloadBase64 || !signature) {
-      throw new UnauthorizedException('Invalid OAuth state');
-    }
-
-    const expectedSignature = this.signState(payloadBase64);
-
-    if (signature !== expectedSignature) {
-      throw new UnauthorizedException('Invalid OAuth state signature');
-    }
-
-    const payload = JSON.parse(
-      Buffer.from(payloadBase64, 'base64url').toString('utf8'),
-    );
-
-    const stateAge = Date.now() - payload.timestamp;
-
-    if (stateAge > 10 * 60 * 1000) {
-      throw new UnauthorizedException('OAuth state expired');
-    }
-
-    return {
-      userId: payload.userId,
-      accountType:
-        payload.accountType === ConnectedAccountType.WORK
-          ? ConnectedAccountType.WORK
-          : ConnectedAccountType.PERSONAL,
-    };
+  if (signature !== expectedSignature) {
+    throw new UnauthorizedException('Invalid OAuth state signature');
   }
+
+  const payload = JSON.parse(
+    Buffer.from(payloadBase64, 'base64url').toString('utf8'),
+  );
+
+  const stateAge = Date.now() - payload.timestamp;
+
+  if (stateAge > 10 * 60 * 1000) {
+    throw new UnauthorizedException('OAuth state expired');
+  }
+
+  return {
+    userId: payload.userId,
+    accountType:
+      payload.accountType === ConnectedAccountType.WORK
+        ? ConnectedAccountType.WORK
+        : ConnectedAccountType.PERSONAL,
+    platform: payload.platform === 'mobile' ? 'mobile' : 'web',
+  };
+}
+
+
+  //   private verifyState(state: string): {
+  //     userId: string;
+  //     accountType: ConnectedAccountType;
+  //   } {
+  //   const [payloadBase64, signature] = state.split('.');
+
+  //   if (!payloadBase64 || !signature) {
+  //     throw new UnauthorizedException('Invalid OAuth state');
+  //   }
+
+  //   const expectedSignature = this.signState(payloadBase64);
+
+  //   if (signature !== expectedSignature) {
+  //     throw new UnauthorizedException('Invalid OAuth state signature');
+  //   }
+
+  //   const payload = JSON.parse(
+  //     Buffer.from(payloadBase64, 'base64url').toString('utf8'),
+  //   );
+
+  //   const stateAge = Date.now() - payload.timestamp;
+
+  //   if (stateAge > 10 * 60 * 1000) {
+  //     throw new UnauthorizedException('OAuth state expired');
+  //   }
+
+  //   return {
+  //     userId: payload.userId,
+  //     accountType:
+  //       payload.accountType === ConnectedAccountType.WORK
+  //         ? ConnectedAccountType.WORK
+  //         : ConnectedAccountType.PERSONAL,
+  //   };
+  // }
 
   private signState(payloadBase64: string): string {
     const secret =

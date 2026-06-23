@@ -40,12 +40,14 @@ export class IntegrationsController {
   getGoogleConnectUrl(
     @Req() req: Request,
     @Query('accountType') accountType?: string,
+    @Query('platform') platform?: string,
   ) {
     const userId = this.getUserIdFromRequest(req);
 
     return this.integrationsService.generateGoogleAuthUrl(
       userId,
       accountType,
+      platform,
     );
   }
 
