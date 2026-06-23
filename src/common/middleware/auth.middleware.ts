@@ -38,8 +38,8 @@ export class AuthMiddleware implements NestMiddleware {
     }
 
     const token = authHeader.split(' ')[1];
-
-    console.log('TOKEN:', token);
+    this.logger.debug('Authorization token received');
+    // console.log('TOKEN:', token);
 
     if (!token) {
       this.logger.warn('Bearer token missing');
