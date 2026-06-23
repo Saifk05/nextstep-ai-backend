@@ -1156,24 +1156,32 @@ if (
   }
 
   private handleGoogleApiError(error: any, serviceName: string): never {
-    const status = error?.code || error?.response?.status;
+  console.log(`${serviceName} GOOGLE API ERROR`);
+  console.log('code:', error?.code);
+  console.log('message:', error?.message);
+  console.log('response:', error?.response?.data);
 
-    if (status === 401) {
-      throw new ForbiddenException(
-        `${serviceName} token expired or invalid. Please reconnect Google account.`,
-      );
-    }
+  const status = error?.code || error?.response?.status;
 
-    if (status === 403) {
-      throw new ForbiddenException(
-        `${serviceName} permission denied. Please reconnect Google account with required permissions.`,
-      );
-    }
-
-    throw new BadRequestException(
-      error?.message || `${serviceName} API error`,
+  if (status === 401) {
+    throw new ForbiddenException(
+      `${serviceName} token expired or invalid. Please reconnect Google account.`,
     );
   }
+
+  if (status === 403) {
+    throw new ForbiddenException(
+      error?.response?.data?.error_description ||
+        error?.response?.data?.error ||
+        error?.message ||
+        `${serviceName} permission denied. Please reconnect Google account with required permissions.`,
+    );
+  }
+
+  throw new BadRequestException(
+    error?.message || `${serviceName} API error`,
+  );
+}
 
     private createState(
       userId: string,
