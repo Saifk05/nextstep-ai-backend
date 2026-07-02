@@ -2,14 +2,17 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { UserService } from '../user/user.service';
 import { TaskService } from '../task/task.service';
+import { GoalsService } from '../goals/services/goals.service';
 
 @Injectable()
 export class DashboardService {
   private readonly logger = new Logger(DashboardService.name);
+  private readonly timeZone = 'Asia/Kolkata';
 
   constructor(
     private readonly userService: UserService,
     private readonly taskService: TaskService,
+    private readonly goalsService: GoalsService,
   ) {}
 
   async getOverview(authUser: any) {
@@ -18,20 +21,32 @@ export class DashboardService {
 
     this.logger.log(`Fetching dashboard overview for userId: ${userId}`);
 
-    const [user, taskSummary, recentActivity] = await Promise.all([
-      this.userService.findById(userId),
-      this.taskService.getTaskSummaryData(userId),
-      this.taskService.getRecentTaskActivity(userId),
-    ]);
+    const [user, taskSummary, recentActivity, goalDashboardData] =
+      await Promise.all([
+        this.userService.findById(userId),
+        this.taskService.getTaskSummaryData(userId),
+        this.taskService.getRecentTaskActivity(userId),
+        this.goalsService.getGoalDashboardData(userId),
+      ]);
 
     const firstName = user?.firstName || 'User';
     const hasTasks = taskSummary.totalTasks > 0;
+    const hasGoals = goalDashboardData.activeGoals.length > 0;
+
+    const overallGoalProgress = hasGoals
+      ? Math.round(
+          goalDashboardData.activeGoals.reduce(
+            (sum, goal) => sum + (goal.progressPercentage || 0),
+            0,
+          ) / goalDashboardData.activeGoals.length,
+        )
+      : 0;
 
     return {
       success: true,
       message: 'Dashboard overview fetched successfully',
       data: {
-        isNewUser: !hasTasks,
+        isNewUser: !hasTasks && !hasGoals,
 
         user: {
           id: userId,
@@ -42,31 +57,30 @@ export class DashboardService {
 
         greeting: {
           message: this.getGreetingMessage(),
-          date: new Date().toISOString().split('T')[0],
-          day: new Date().toLocaleDateString('en-US', {
-            weekday: 'long',
-          }),
+          date: this.getLocalDate(),
+          day: this.getLocalDay(),
         },
 
         summary: {
           totalTasks: taskSummary.totalTasks,
           completedTasks: taskSummary.completedTasks,
           pendingTasks: taskSummary.pendingTasks,
-          activeGoals: 0,
+          activeGoals: goalDashboardData.activeGoals.length,
           productivityScore: taskSummary.productivityScore,
         },
 
-        todayFocus: hasTasks
-          ? {
-              title: 'Keep your momentum going',
-              description:
-                'Complete at least one task today to continue your streak.',
-            }
-          : {
-              title: 'Start your day with one small step',
-              description:
-                'Add your first task or goal to begin planning with NextStep AI.',
-            },
+        todayFocus:
+          hasTasks || hasGoals
+            ? {
+                title: 'Keep your momentum going',
+                description:
+                  'Complete at least one task or goal action today to continue your streak.',
+              }
+            : {
+                title: 'Start your day with one small step',
+                description:
+                  'Add your first task or goal to begin planning with NextStep AI.',
+              },
 
         tasks: {
           total: taskSummary.totalTasks,
@@ -84,11 +98,11 @@ export class DashboardService {
         },
 
         goals: {
-          totalGoals: 0,
-          activeGoals: 0,
-          completedGoals: 0,
-          overallProgress: 0,
-          items: [],
+          totalGoals: goalDashboardData.activeGoals.length,
+          activeGoals: goalDashboardData.activeGoals.length,
+          completedGoals: goalDashboardData.completedGoalsCount,
+          overallProgress: overallGoalProgress,
+          items: goalDashboardData.activeGoals,
           emptyState: {
             title: 'No goals yet',
             description: 'Create your first goal to track progress.',
@@ -111,7 +125,7 @@ export class DashboardService {
           },
           {
             type: 'CREATE_GOAL',
-            title: 'Create your first goal',
+            title: hasGoals ? 'Add another goal' : 'Create your first goal',
             description: 'Track something important',
           },
         ],
@@ -122,12 +136,32 @@ export class DashboardService {
   }
 
   private getGreetingMessage(): string {
-    const hour = new Date().getHours();
+    const hour = Number(
+      new Date().toLocaleString('en-US', {
+        timeZone: this.timeZone,
+        hour: 'numeric',
+        hour12: false,
+      }),
+    );
 
     if (hour < 12) return 'Good Morning';
-
     if (hour < 17) return 'Good Afternoon';
-
     return 'Good Evening';
+  }
+
+  private getLocalDate(): string {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: this.timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+  }
+
+  private getLocalDay(): string {
+    return new Intl.DateTimeFormat('en-US', {
+      timeZone: this.timeZone,
+      weekday: 'long',
+    }).format(new Date());
   }
 }

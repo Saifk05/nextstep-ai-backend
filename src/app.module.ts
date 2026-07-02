@@ -12,10 +12,11 @@ import { ScheduleModule } from '@nestjs/schedule';
 import appConfig from './config/app.config';
 import databaseConfig from './config/database.config';
 import jwtConfig from './config/jwt.config';
+import { AiModule } from './common/ai/ai.module';
 
 import { LoggerModule } from './common/logger/logger.module';
 import { AuthMiddleware } from './common/middleware/auth.middleware';
-
+import { GoalsModule } from './modules/goals/goals.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { UserModule } from './modules/user/user.module';
@@ -42,13 +43,14 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     
 
     LoggerModule,
-
+    AiModule,
     AuthModule,
     UserModule,
     DashboardModule,
     TaskModule,
     IntegrationsModule,
     NotificationsModule,
+    GoalsModule,
   ],
 })
 export class AppModule implements NestModule {
@@ -149,6 +151,15 @@ export class AppModule implements NestModule {
       },
       {
         path: 'notifications/(.*)',
+        method: RequestMethod.ALL,
+      },
+      // Goals protected routes
+      {
+        path: 'goals',
+        method: RequestMethod.ALL,
+      },
+      {
+        path: 'goals/(.*)',
         method: RequestMethod.ALL,
       },
     );
