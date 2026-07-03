@@ -48,8 +48,8 @@ export class GoalsService {
         throw new BadRequestException('Target date must be in the future');
     }
 
-    const existingGoal = await this.goalModel.findOne({
-        userId,
+      const existingGoal = await this.goalModel.findOne({
+        userId: new Types.ObjectId(userId),
         title: {
         $regex: `^${normalizedTitle}$`,
         $options: 'i',
@@ -148,7 +148,10 @@ export class GoalsService {
     }
 
   async getGoalById(userId: string, goalId: string) {
-    const goal = await this.goalModel.findOne({ _id: goalId, userId }).lean();
+    const goal = await this.goalModel.findOne({
+      _id: new Types.ObjectId(goalId),
+      userId: new Types.ObjectId(userId),
+    }).lean();
 
     if (!goal) {
       throw new NotFoundException('Goal not found');
@@ -156,16 +159,16 @@ export class GoalsService {
 
     const plan = await this.goalPlanModel
       .findOne({
-        userId,
-        goalId,
+        userId: new Types.ObjectId(userId),
+        goalId: new Types.ObjectId(goalId),
         isActive: true,
       })
       .lean();
 
     const recentActivity = await this.activityModel
       .find({
-        userId,
-        goalId,
+        userId: new Types.ObjectId(userId),
+        goalId: new Types.ObjectId(goalId),
       })
       .sort({ createdAt: -1 })
       .limit(10)
@@ -181,8 +184,8 @@ export class GoalsService {
       const normalizedTitle = dto.title.trim();
 
       const existingGoal = await this.goalModel.findOne({
-        _id: { $ne: goalId },
-        userId,
+        _id: { $ne: new Types.ObjectId(goalId) },
+        userId: new Types.ObjectId(userId),
         title: {
           $regex: `^${normalizedTitle}$`,
           $options: 'i',
@@ -216,8 +219,8 @@ export class GoalsService {
 
     const goal = await this.goalModel.findOneAndUpdate(
       {
-        _id: goalId,
-        userId,
+         _id: new Types.ObjectId(goalId),
+         userId: new Types.ObjectId(userId),
       },
       updateData,
       {
@@ -246,8 +249,8 @@ export class GoalsService {
   ) {
     const goal = await this.goalModel.findOneAndUpdate(
       {
-        _id: goalId,
-        userId,
+      _id: new Types.ObjectId(goalId),
+      userId: new Types.ObjectId(userId),
       },
       {
         status: dto.status,
@@ -273,8 +276,8 @@ export class GoalsService {
 
   async regenerateGoalPlan(userId: string, goalId: string) {
     const goal = await this.goalModel.findOne({
-      _id: goalId,
-      userId,
+      _id: new Types.ObjectId(goalId),
+      userId: new Types.ObjectId(userId),
     });
 
     if (!goal) {
@@ -283,8 +286,8 @@ export class GoalsService {
 
     await this.goalPlanModel.updateMany(
       {
-        userId,
-        goalId,
+        userId: new Types.ObjectId(userId),
+        goalId: new Types.ObjectId(goalId),
         isActive: true,
       },
       {
@@ -330,8 +333,8 @@ export class GoalsService {
 
     return this.activityModel
       .find({
-        userId,
-        goalId,
+      userId: new Types.ObjectId(userId),
+      goalId: new Types.ObjectId(goalId),
       })
       .sort({ createdAt: -1 })
       .limit(30)
@@ -343,8 +346,8 @@ export class GoalsService {
 
     const plan = await this.goalPlanModel
       .findOne({
-        userId,
-        goalId,
+        userId: new Types.ObjectId(userId),
+        goalId: new Types.ObjectId(goalId),
         isActive: true,
       })
       .lean();
@@ -392,8 +395,8 @@ export class GoalsService {
 
   private async ensureGoalBelongsToUser(userId: string, goalId: string) {
     const exists = await this.goalModel.exists({
-      _id: goalId,
-      userId,
+      _id: new Types.ObjectId(goalId),
+      userId: new Types.ObjectId(userId),
     });
 
     if (!exists) {

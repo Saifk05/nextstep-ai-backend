@@ -34,6 +34,35 @@ export class GoalsController {
     return this.goalsService.getActiveGoals(req.user.userId);
   }
 
+  @Get(':goalId/plan')
+  getGoalPlan(@Req() req, @Param('goalId') goalId: string) {
+    return this.goalsService.getGoalPlan(req.user.userId, goalId);
+  }
+
+  @Get(':goalId/activity')
+  getGoalActivity(@Req() req, @Param('goalId') goalId: string) {
+    return this.goalsService.getGoalActivity(req.user.userId, goalId);
+  }
+
+  @Post(':goalId/regenerate-plan')
+  regenerateGoalPlan(@Req() req, @Param('goalId') goalId: string) {
+    return this.goalsService.regenerateGoalPlan(req.user.userId, goalId);
+  }
+
+  @Post(':goalId/sync-gmail')
+  syncGoalGmail(@Req() req, @Param('goalId') goalId: string) {
+    return this.goalsGmailService.syncGoalGmail(req.user.userId, goalId);
+  }
+
+  @Patch(':goalId/status')
+  updateGoalStatus(
+    @Req() req,
+    @Param('goalId') goalId: string,
+    @Body() dto: UpdateGoalStatusDto,
+  ) {
+    return this.goalsService.updateGoalStatus(req.user.userId, goalId, dto);
+  }
+
   @Get(':goalId')
   getGoalById(@Req() req, @Param('goalId') goalId: string) {
     return this.goalsService.getGoalById(req.user.userId, goalId);
@@ -46,34 +75,5 @@ export class GoalsController {
     @Body() dto: UpdateGoalDto,
   ) {
     return this.goalsService.updateGoal(req.user.userId, goalId, dto);
-  }
-
-  @Patch(':goalId/status')
-  updateGoalStatus(
-    @Req() req,
-    @Param('goalId') goalId: string,
-    @Body() dto: UpdateGoalStatusDto,
-  ) {
-    return this.goalsService.updateGoalStatus(req.user.userId, goalId, dto);
-  }
-
-  @Get(':goalId/plan')
-  getGoalPlan(@Req() req, @Param('goalId') goalId: string) {
-    return this.goalsService.getGoalPlan(req.user.userId, goalId);
-  }
-
-  @Post(':goalId/regenerate-plan')
-  regenerateGoalPlan(@Req() req, @Param('goalId') goalId: string) {
-    return this.goalsService.regenerateGoalPlan(req.user.userId, goalId);
-  }
-
-  @Get(':goalId/activity')
-  getGoalActivity(@Req() req, @Param('goalId') goalId: string) {
-    return this.goalsService.getGoalActivity(req.user.userId, goalId);
-  }
-
-  @Post(':goalId/sync-gmail')
-  syncGoalGmail(@Req() req, @Param('goalId') goalId: string) {
-    return this.goalsGmailService.syncGoalGmail(req.user.userId, goalId);
   }
 }
