@@ -1,5 +1,14 @@
 // src/modules/goals/enums/goals.enum.ts
 
+export enum GoalCategory {
+  CAREER = 'CAREER',
+  FITNESS = 'FITNESS',
+  STUDY = 'STUDY',
+  FINANCE = 'FINANCE',
+  BUSINESS = 'BUSINESS',
+  CUSTOM = 'CUSTOM',
+}
+
 export enum GoalType {
   JOB_SEARCH = 'JOB_SEARCH',
   CAREER_GROWTH = 'CAREER_GROWTH',
@@ -9,6 +18,42 @@ export enum GoalType {
   BUSINESS = 'BUSINESS',
   PERSONAL = 'PERSONAL',
   CUSTOM = 'CUSTOM',
+}
+
+export enum GoalTemplateKey {
+  JOB_SEARCH = 'JOB_SEARCH',
+
+  WEIGHT_LOSS = 'WEIGHT_LOSS',
+  WEIGHT_GAIN = 'WEIGHT_GAIN',
+
+  EXAM_PREPARATION = 'EXAM_PREPARATION',
+  SKILL_DEVELOPMENT = 'SKILL_DEVELOPMENT',
+
+  SAVE_MONEY = 'SAVE_MONEY',
+  DEBT_REDUCTION = 'DEBT_REDUCTION',
+
+  START_BUSINESS = 'START_BUSINESS',
+  GROW_REVENUE = 'GROW_REVENUE',
+
+  CUSTOM = 'CUSTOM',
+}
+
+export enum GoalPlanSource {
+  TEMPLATE = 'TEMPLATE',
+  AI_GENERATED = 'AI_GENERATED',
+  MANUAL = 'MANUAL',
+}
+
+export enum GoalActionFrequency {
+  DAILY = 'DAILY',
+  WEEKLY = 'WEEKLY',
+  ONCE = 'ONCE',
+}
+
+export enum GoalActionPriority {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
 }
 
 export enum GoalStatus {
@@ -30,7 +75,11 @@ export enum RecruiterStatus {
 
 export enum ActivityType {
   GOAL_CREATED = 'GOAL_CREATED',
+
+  TEMPLATE_SELECTED = 'TEMPLATE_SELECTED',
   AI_PLAN_GENERATED = 'AI_PLAN_GENERATED',
+  AI_PLAN_REGENERATED = 'AI_PLAN_REGENERATED',
+
   GOAL_UPDATED = 'GOAL_UPDATED',
   GOAL_STATUS_UPDATED = 'GOAL_STATUS_UPDATED',
   GOAL_PROGRESS_UPDATED = 'GOAL_PROGRESS_UPDATED',

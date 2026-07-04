@@ -2,7 +2,14 @@
 
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
-import { GoalStatus, GoalType } from '../enums/goals.enum';
+
+import {
+  GoalCategory,
+  GoalPlanSource,
+  GoalStatus,
+  GoalTemplateKey,
+  GoalType,
+} from '../enums/goals.enum';
 
 export type GoalDocument = HydratedDocument<Goal>;
 
@@ -16,6 +23,42 @@ export class Goal {
 
   @Prop({ trim: true })
   description?: string;
+
+  @Prop({
+    type: String,
+    enum: GoalCategory,
+    default: GoalCategory.CUSTOM,
+    index: true,
+  })
+  category: GoalCategory;
+
+  @Prop({
+    type: String,
+    enum: GoalTemplateKey,
+    default: GoalTemplateKey.CUSTOM,
+    index: true,
+  })
+  templateKey: GoalTemplateKey;
+
+  @Prop({
+    type: Number,
+    default: 1,
+  })
+  templateVersion: number;
+
+  @Prop({
+    type: Object,
+    default: {},
+  })
+  setupAnswers: Record<string, any>;
+
+  @Prop({
+    type: String,
+    enum: GoalPlanSource,
+    default: GoalPlanSource.TEMPLATE,
+    index: true,
+  })
+  planSource: GoalPlanSource;
 
   @Prop({
     type: String,
@@ -79,6 +122,16 @@ GoalSchema.index({
 GoalSchema.index({
   userId: 1,
   goalType: 1,
+});
+
+GoalSchema.index({
+  userId: 1,
+  category: 1,
+});
+
+GoalSchema.index({
+  userId: 1,
+  templateKey: 1,
 });
 
 GoalSchema.index(

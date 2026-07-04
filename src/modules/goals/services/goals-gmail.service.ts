@@ -3,9 +3,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-
 import { Goal, GoalDocument } from '../schemas/goal.schema';
-import { GoalType } from '../enums/goals.enum';
+import { GoalTemplateKey } from '../enums/goals.enum';
+
 
 @Injectable()
 export class GoalsGmailService {
@@ -24,7 +24,7 @@ export class GoalsGmailService {
       throw new BadRequestException('Goal not found');
     }
 
-    if (goal.goalType !== GoalType.JOB_SEARCH) {
+    if (goal.templateKey !== GoalTemplateKey.JOB_SEARCH) {
       throw new BadRequestException(
         'Gmail automation is only available for job search goals',
       );

@@ -8,8 +8,6 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 
-import { AiService } from '../../../common/ai/ai.service';
-
 import { Goal, GoalDocument } from '../schemas/goal.schema';
 import { GoalPlan, GoalPlanDocument } from '../schemas/goal-plan.schema';
 import {
@@ -23,7 +21,14 @@ import {
   UpdateGoalStatusDto,
 } from '../dto/goals.dto';
 
-import { ActivityType, GoalStatus, GoalType } from '../enums/goals.enum';
+import {
+  ActivityType,
+  GoalPlanSource,
+  GoalStatus,
+} from '../enums/goals.enum';
+
+import { GoalTemplateService } from './goal-template.service';
+import { GoalPlanValidatorService } from './goal-plan-validator.service';
 
 @Injectable()
 export class GoalsService {
@@ -37,121 +42,114 @@ export class GoalsService {
     @InjectModel(GoalActivity.name)
     private readonly activityModel: Model<GoalActivityDocument>,
 
-    private readonly aiService: AiService,
+    private readonly goalTemplateService: GoalTemplateService,
+
+    private readonly goalPlanValidatorService: GoalPlanValidatorService,
   ) {}
 
-    async createGoal(userId: string, dto: CreateGoalDto) {
+  async createGoal(userId: string, dto: CreateGoalDto) {
     const normalizedTitle = dto.title.trim();
     const targetDate = new Date(dto.targetDate);
 
     if (targetDate < new Date()) {
-        throw new BadRequestException('Target date must be in the future');
+      throw new BadRequestException('Target date must be in the future');
     }
 
-      const existingGoal = await this.goalModel.findOne({
-        userId: new Types.ObjectId(userId),
-        title: {
+    const existingGoal = await this.goalModel.findOne({
+      userId: new Types.ObjectId(userId),
+      title: {
         $regex: `^${normalizedTitle}$`,
         $options: 'i',
-        },
+      },
     });
 
     if (existingGoal) {
-        throw new BadRequestException('A goal with this title already exists');
+      throw new BadRequestException('A goal with this title already exists');
     }
+
+    const { template, plan } = this.buildTemplatePlan(dto);
 
     const goal = await this.goalModel.create({
-        userId: new Types.ObjectId(userId),
-        title: normalizedTitle,
-        description: dto.description?.trim(),
-        goalType: dto.goalType || GoalType.CUSTOM,
-        targetDate,
-        status: GoalStatus.ACTIVE,
-        progressPercentage: 0,
+      userId: new Types.ObjectId(userId),
+      title: normalizedTitle,
+      description: dto.description?.trim() || template.description,
+      category: template.category,
+      templateKey: template.key,
+      templateVersion: template.version,
+      setupAnswers: dto.setupAnswers || {},
+      planSource: GoalPlanSource.TEMPLATE,
+      goalType: template.goalType,
+      targetDate,
+      status: GoalStatus.ACTIVE,
+      progressPercentage: 0,
+      aiPlanSummary: plan.strategySummary,
+      metrics: plan.metrics,
     });
 
-    let plan;
-
-    if (dto.useAiPlan === false) {
-        const hasManualPlan =
-        (dto.dailyActions?.length || 0) > 0 ||
-        (dto.weeklyActions?.length || 0) > 0 ||
-        (dto.milestones?.length || 0) > 0;
-
-        if (!hasManualPlan) {
-        throw new BadRequestException(
-            'Manual goal requires at least one daily action, weekly action, or milestone',
-        );
-        }
-
-        plan = await this.goalPlanModel.create({
-        userId: goal.userId,
-        goalId: goal._id,
-        dailyActions: this.toPlanItems(dto.dailyActions || []),
-        weeklyActions: this.toPlanItems(dto.weeklyActions || []),
-        milestones: this.toPlanItems(dto.milestones || []),
-        strategySummary: 'Manual goal plan',
-        isActive: true,
-        });
-    } else {
-        const aiPlan = await this.aiService.generateGoalPlan({
-        title: goal.title,
-        description: goal.description,
-        targetDate: goal.targetDate,
-        });
-
-        goal.goalType = aiPlan.goalType || goal.goalType;
-        goal.aiPlanSummary = aiPlan.strategySummary;
-        await goal.save();
-
-        plan = await this.goalPlanModel.create({
-        userId: goal.userId,
-        goalId: goal._id,
-        dailyActions: this.toPlanItems(aiPlan.dailyActions),
-        weeklyActions: this.toPlanItems(aiPlan.weeklyActions),
-        milestones: this.toPlanItems(aiPlan.milestones),
-        strategySummary: aiPlan.strategySummary,
-        isActive: true,
-        });
-
-        await this.createActivity({
-        userId,
-        goalId: goal._id.toString(),
-        type: ActivityType.AI_PLAN_GENERATED,
-        message: 'AI plan generated successfully',
-        metadata: {
-            goalType: goal.goalType,
-        },
-        });
-    }
+    const savedPlan = await this.goalPlanModel.create({
+      userId: goal.userId,
+      goalId: goal._id,
+      version: 1,
+      actions: plan.actions,
+      milestones: plan.milestones,
+      dailyActions: plan.actions.filter((a) => a.frequency === 'DAILY'),
+      weeklyActions: plan.actions.filter((a) => a.frequency === 'WEEKLY'),
+      legacyMilestones: plan.milestones,
+      strategySummary: plan.strategySummary,
+      isActive: true,
+    });
 
     await this.createActivity({
-        userId,
-        goalId: goal._id.toString(),
-        type: ActivityType.GOAL_CREATED,
-        message: `Goal created: ${goal.title}`,
+      userId,
+      goalId: goal._id.toString(),
+      type: ActivityType.TEMPLATE_SELECTED,
+      message: `Template selected: ${template.title}`,
+      metadata: {
+        templateKey: template.key,
+        category: template.category,
+        templateVersion: template.version,
+      },
     });
 
-    return this.mapGoalResponse(goal, plan);
-    }
+    await this.createActivity({
+      userId,
+      goalId: goal._id.toString(),
+      type: ActivityType.GOAL_CREATED,
+      message: `Goal created: ${goal.title}`,
+    });
 
-    async getActiveGoals(userId: string) {
+    return this.mapGoalResponse(goal, savedPlan);
+  }
+
+  async getActiveGoals(userId: string) {
     const goals = await this.goalModel
-        .find({
+      .find({
         userId: new Types.ObjectId(userId),
         status: GoalStatus.ACTIVE,
-        })
-        .sort({ createdAt: -1 })
-        .lean();
+      })
+      .sort({ createdAt: -1 })
+      .lean();
 
-    return goals.map((goal) => this.mapGoalResponse(goal));
-    }
+      return goals.map((goal) => ({
+      id: goal._id?.toString(),
+      title: goal.title,
+      category: goal.category,
+      templateKey: goal.templateKey,
+      goalType: goal.goalType,
+      status: goal.status,
+      targetDate: goal.targetDate,
+      progressPercentage: goal.progressPercentage || 0,
+    }));
+    // return goals.map((goal) => this.mapGoalResponse(goal));
+  }
 
   async getGoalById(userId: string, goalId: string) {
-    const goal = await this.goalModel.findOne({
-      _id: new Types.ObjectId(goalId),
-      userId: new Types.ObjectId(userId),
-    }).lean();
+    const goal = await this.goalModel
+      .findOne({
+        _id: new Types.ObjectId(goalId),
+        userId: new Types.ObjectId(userId),
+      })
+      .lean();
 
     if (!goal) {
       throw new NotFoundException('Goal not found');
@@ -203,10 +201,6 @@ export class GoalsService {
       updateData.description = dto.description?.trim();
     }
 
-    if (dto.goalType) {
-      updateData.goalType = dto.goalType;
-    }
-
     if (dto.targetDate) {
       const targetDate = new Date(dto.targetDate);
 
@@ -219,13 +213,11 @@ export class GoalsService {
 
     const goal = await this.goalModel.findOneAndUpdate(
       {
-         _id: new Types.ObjectId(goalId),
-         userId: new Types.ObjectId(userId),
+        _id: new Types.ObjectId(goalId),
+        userId: new Types.ObjectId(userId),
       },
       updateData,
-      {
-        new: true,
-      },
+      { new: true },
     );
 
     if (!goal) {
@@ -249,15 +241,11 @@ export class GoalsService {
   ) {
     const goal = await this.goalModel.findOneAndUpdate(
       {
-      _id: new Types.ObjectId(goalId),
-      userId: new Types.ObjectId(userId),
+        _id: new Types.ObjectId(goalId),
+        userId: new Types.ObjectId(userId),
       },
-      {
-        status: dto.status,
-      },
-      {
-        new: true,
-      },
+      { status: dto.status },
+      { new: true },
     );
 
     if (!goal) {
@@ -284,44 +272,41 @@ export class GoalsService {
       throw new NotFoundException('Goal not found');
     }
 
+    const plan = this.goalTemplateService.buildDefaultPlan(goal.templateKey);
+    this.goalPlanValidatorService.validatePlan(plan);
+
     await this.goalPlanModel.updateMany(
       {
         userId: new Types.ObjectId(userId),
         goalId: new Types.ObjectId(goalId),
         isActive: true,
       },
-      {
-        isActive: false,
-      },
+      { isActive: false },
     );
 
-    const aiPlan = await this.aiService.generateGoalPlan({
-      title: goal.title,
-      description: goal.description,
-      targetDate: goal.targetDate,
-    });
-
-    goal.goalType = aiPlan.goalType || goal.goalType;
-    goal.aiPlanSummary = aiPlan.strategySummary;
+    goal.aiPlanSummary = plan.strategySummary;
     await goal.save();
 
     const newPlan = await this.goalPlanModel.create({
       userId: goal.userId,
       goalId: goal._id,
-      dailyActions: this.toPlanItems(aiPlan.dailyActions),
-      weeklyActions: this.toPlanItems(aiPlan.weeklyActions),
-      milestones: this.toPlanItems(aiPlan.milestones),
-      strategySummary: aiPlan.strategySummary,
+      version: 1,
+      actions: plan.actions,
+      milestones: plan.milestones,
+      dailyActions: plan.actions.filter((a) => a.frequency === 'DAILY'),
+      weeklyActions: plan.actions.filter((a) => a.frequency === 'WEEKLY'),
+      // legacyMilestones: plan.milestones,
+      strategySummary: plan.strategySummary,
       isActive: true,
     });
 
     await this.createActivity({
       userId,
       goalId,
-      type: ActivityType.AI_PLAN_GENERATED,
-      message: 'AI plan regenerated successfully',
+      type: ActivityType.AI_PLAN_REGENERATED,
+      message: 'Goal plan regenerated from template',
       metadata: {
-        goalType: goal.goalType,
+        templateKey: goal.templateKey,
       },
     });
 
@@ -333,8 +318,8 @@ export class GoalsService {
 
     return this.activityModel
       .find({
-      userId: new Types.ObjectId(userId),
-      goalId: new Types.ObjectId(goalId),
+        userId: new Types.ObjectId(userId),
+        goalId: new Types.ObjectId(goalId),
       })
       .sort({ createdAt: -1 })
       .limit(30)
@@ -356,42 +341,64 @@ export class GoalsService {
       return null;
     }
 
-    return {
-      id: plan._id?.toString(),
-      strategySummary: plan.strategySummary,
-      dailyActions: plan.dailyActions || [],
-      weeklyActions: plan.weeklyActions || [],
-      milestones: plan.milestones || [],
-    };
+    return this.mapPlanResponse(plan);
   }
 
   async getGoalDashboardData(userId: string) {
     const activeGoals = await this.goalModel
-        .find({
+      .find({
         userId: new Types.ObjectId(userId),
         status: GoalStatus.ACTIVE,
-        })
-        .sort({ createdAt: -1 })
-        .select('_id title goalType status progressPercentage targetDate')
-        .lean();
+      })
+      .sort({ createdAt: -1 })
+      .select(
+        '_id title category templateKey goalType status progressPercentage targetDate',
+      )
+      .lean();
 
     const completedGoalsCount = await this.goalModel.countDocuments({
-        userId: new Types.ObjectId(userId),
-        status: GoalStatus.COMPLETED,
+      userId: new Types.ObjectId(userId),
+      status: GoalStatus.COMPLETED,
     });
 
     return {
-        activeGoals: activeGoals.map((goal) => ({
+      activeGoals: activeGoals.map((goal) => ({
         id: goal._id?.toString(),
         title: goal.title,
+        category: goal.category,
+        templateKey: goal.templateKey,
         goalType: goal.goalType,
         status: goal.status,
         targetDate: goal.targetDate,
         progressPercentage: goal.progressPercentage || 0,
-        })),
-        completedGoalsCount,
+      })),
+      completedGoalsCount,
     };
+  }
+
+  private buildTemplatePlan(dto: CreateGoalDto) {
+    const template = this.goalTemplateService.getTemplate(dto.templateKey);
+
+    if (template.category !== dto.category) {
+      throw new BadRequestException(
+        'Goal category does not match selected template',
+      );
     }
+
+    this.goalTemplateService.validateSetupAnswers(
+      dto.templateKey,
+      dto.setupAnswers,
+    );
+
+    const plan = this.goalTemplateService.buildDefaultPlan(dto.templateKey);
+
+    this.goalPlanValidatorService.validatePlan(plan);
+
+    return {
+      template,
+      plan,
+    };
+  }
 
   private async ensureGoalBelongsToUser(userId: string, goalId: string) {
     const exists = await this.goalModel.exists({
@@ -404,23 +411,21 @@ export class GoalsService {
     }
   }
 
-  private toPlanItems(items: string[] = []) {
-    return items.map((title) => ({
-      title,
-      completed: false,
-    }));
-  }
-
   private mapGoalResponse(goal: any, plan?: any, recentActivity: any[] = []) {
     return {
       id: goal._id?.toString(),
       title: goal.title,
       description: goal.description,
+      category: goal.category,
+      templateKey: goal.templateKey,
+      templateVersion: goal.templateVersion,
+      planSource: goal.planSource,
       goalType: goal.goalType,
       status: goal.status,
       targetDate: goal.targetDate,
       progressPercentage: goal.progressPercentage || 0,
       aiPlanSummary: goal.aiPlanSummary,
+      setupAnswers: goal.setupAnswers || {},
       metrics: {
         emailsSent: goal.metrics?.emailsSent || 0,
         replies: goal.metrics?.replies || 0,
@@ -430,18 +435,22 @@ export class GoalsService {
         followUpsDue: goal.metrics?.followUpsDue || 0,
         applicationsSubmitted: goal.metrics?.applicationsSubmitted || 0,
       },
-      plan: plan
-        ? {
-            id: plan._id?.toString(),
-            strategySummary: plan.strategySummary,
-            dailyActions: plan.dailyActions || [],
-            weeklyActions: plan.weeklyActions || [],
-            milestones: plan.milestones || [],
-          }
-        : null,
+      plan: plan ? this.mapPlanResponse(plan) : null,
       recentActivity,
     };
   }
+
+private mapPlanResponse(plan: any) {
+  return {
+    id: plan._id?.toString(),
+    version: plan.version || 1,
+    strategySummary: plan.strategySummary,
+    actions: plan.actions || [],
+    milestones: plan.milestones || [],
+    dailyActions: plan.dailyActions || [],
+    weeklyActions: plan.weeklyActions || [],
+  };
+}
 
   private async createActivity(data: {
     userId: string;

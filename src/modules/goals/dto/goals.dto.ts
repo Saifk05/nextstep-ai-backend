@@ -1,3 +1,5 @@
+// src/modules/goals/dto/goals.dto.ts
+
 import {
   IsArray,
   IsBoolean,
@@ -5,15 +7,19 @@ import {
   IsEmail,
   IsEnum,
   IsMongoId,
+  IsObject,
   IsOptional,
   IsString,
 } from 'class-validator';
 
 import {
+  GoalCategory,
   GoalStatus,
+  GoalTemplateKey,
   GoalType,
   RecruiterStatus,
 } from '../enums/goals.enum';
+
 
 export class CreateGoalDto {
   @IsString()
@@ -23,16 +29,28 @@ export class CreateGoalDto {
   @IsString()
   description?: string;
 
-  @IsOptional()
-  @IsEnum(GoalType)
-  goalType?: GoalType;
+  @IsEnum(GoalCategory)
+  category: GoalCategory;
+
+  @IsEnum(GoalTemplateKey)
+  templateKey: GoalTemplateKey;
 
   @IsDateString()
   targetDate: string;
 
   @IsOptional()
+  @IsObject()
+  setupAnswers?: Record<string, any>;
+
+
+
+  @IsOptional()
+  @IsEnum(GoalType)
+  goalType?: GoalType;
+
+  @IsOptional()
   @IsBoolean()
-  useAiPlan?: boolean = true;
+  useAiPlan?: true;
 
   @IsOptional()
   @IsArray()
@@ -50,6 +68,8 @@ export class CreateGoalDto {
   milestones?: string[];
 }
 
+
+
 export class UpdateGoalDto {
   @IsOptional()
   @IsString()
@@ -60,18 +80,16 @@ export class UpdateGoalDto {
   description?: string;
 
   @IsOptional()
-  @IsEnum(GoalType)
-  goalType?: GoalType;
-
-  @IsOptional()
   @IsDateString()
   targetDate?: string;
 }
+
 
 export class UpdateGoalStatusDto {
   @IsEnum(GoalStatus)
   status: GoalStatus;
 }
+
 
 export class CreateRecruiterDto {
   @IsString()
@@ -117,6 +135,14 @@ export class UpdateRecruiterDto {
   @IsString()
   notes?: string;
 }
+
+
+
+export class GoalTemplateParamDto {
+  @IsEnum(GoalTemplateKey)
+  templateKey: GoalTemplateKey;
+}
+
 
 export class GoalIdParamDto {
   @IsMongoId()

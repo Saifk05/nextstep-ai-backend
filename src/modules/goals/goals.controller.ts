@@ -5,11 +5,13 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 
 import { GoalsService } from './services/goals.service';
 import { GoalsGmailService } from './services/goals-gmail.service';
+import { GoalTemplateService } from './services/goal-template.service';
 
 import {
   CreateGoalDto,
@@ -17,12 +19,29 @@ import {
   UpdateGoalStatusDto,
 } from './dto/goals.dto';
 
+import { GoalCategory, GoalTemplateKey } from './enums/goals.enum';
+
 @Controller('goals')
 export class GoalsController {
   constructor(
     private readonly goalsService: GoalsService,
     private readonly goalsGmailService: GoalsGmailService,
+    private readonly goalTemplateService: GoalTemplateService,
   ) {}
+
+  @Get('templates')
+  getGoalTemplates(@Query('category') category?: GoalCategory) {
+    if (category) {
+      return this.goalTemplateService.getTemplatesByCategory(category);
+    }
+
+    return this.goalTemplateService.getTemplates();
+  }
+
+  @Get('templates/:slug')
+  getGoalTemplate(@Param('slug') slug: string) {
+    return this.goalTemplateService.getTemplateBySlug(slug);
+  }
 
   @Post()
   createGoal(@Req() req, @Body() dto: CreateGoalDto) {
