@@ -108,6 +108,50 @@ export class Task {
   })
   completedAt: Date | null;
 
+  /**
+   * Goal Execution Engine Fields
+   */
+
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Goal',
+    default: null,
+    index: true,
+  })
+  goalId: Types.ObjectId | null;
+
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'GoalPlan',
+    default: null,
+    index: true,
+  })
+  goalPlanId: Types.ObjectId | null;
+
+  @Prop({
+    default: null,
+    trim: true,
+  })
+  goalActionKey: string | null;
+
+  @Prop({
+    default: null,
+    trim: true,
+  })
+  goalActionType: string | null;
+
+  @Prop({
+    default: null,
+    trim: true,
+  })
+  goalActionFrequency: string | null;
+
+  @Prop({
+    default: false,
+    index: true,
+  })
+  isGoalTask: boolean;
+
   @Prop({
     default: false,
     index: true,
@@ -121,3 +165,11 @@ TaskSchema.index({ userId: 1, createdAt: -1 });
 TaskSchema.index({ userId: 1, dueDate: 1 });
 TaskSchema.index({ userId: 1, status: 1 });
 TaskSchema.index({ userId: 1, isDeleted: 1 });
+
+/**
+ * Goal Engine Indexes
+ */
+TaskSchema.index({ goalId: 1 });
+TaskSchema.index({ goalPlanId: 1 });
+TaskSchema.index({ goalId: 1, status: 1 });
+TaskSchema.index({ userId: 1, goalId: 1 });

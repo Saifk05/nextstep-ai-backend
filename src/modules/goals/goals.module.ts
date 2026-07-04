@@ -1,6 +1,6 @@
 // src/modules/goals/goals.module.ts
 
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { GoalsController } from './goals.controller';
@@ -20,10 +20,13 @@ import {
 } from './schemas/goal-template.schema';
 
 import { AiModule } from '../../common/ai/ai.module';
+import { TaskModule } from '../task/task.module';
 
 @Module({
   imports: [
     AiModule,
+
+    forwardRef(() => TaskModule),
 
     MongooseModule.forFeature([
       {

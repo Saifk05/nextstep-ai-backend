@@ -4,9 +4,14 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
+
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { TaskService } from '../../task/task.service';
+
 
 import { Goal, GoalDocument } from '../schemas/goal.schema';
 import { GoalPlan, GoalPlanDocument } from '../schemas/goal-plan.schema';
@@ -45,6 +50,11 @@ export class GoalsService {
     private readonly goalTemplateService: GoalTemplateService,
 
     private readonly goalPlanValidatorService: GoalPlanValidatorService,
+
+    @Inject(forwardRef(() => TaskService))
+    private readonly taskService: TaskService,
+
+    // private readonly taskService: TaskService,
   ) {}
 
   async createGoal(userId: string, dto: CreateGoalDto) {
@@ -116,6 +126,23 @@ export class GoalsService {
       goalId: goal._id.toString(),
       type: ActivityType.GOAL_CREATED,
       message: `Goal created: ${goal.title}`,
+    });
+
+    const createdTasks = await this.taskService.createTasksFromGoalPlan({
+      userId,
+      goalId: goal._id.toString(),
+      goalPlanId: savedPlan._id.toString(),
+      actions: savedPlan.actions || [],
+    });
+
+    await this.createActivity({
+      userId,
+      goalId: goal._id.toString(),
+      type: ActivityType.GOAL_TASKS_CREATED,
+      message: `${createdTasks.length} tasks created from goal plan`,
+      metadata: {
+        taskCount: createdTasks.length,
+      },
     });
 
     return this.mapGoalResponse(goal, savedPlan);
@@ -380,6 +407,55 @@ export class GoalsService {
     };
   }
 
+  async handleGoalTaskCompleted(userId: string, task: any) {
+    if (!task?.goalId) {
+      return;
+    }
+
+    const goalId = task.goalId.toString();
+
+    const metricIncrement = this.getMetricIncrementForActionType(
+      task.goalActionType,
+    );
+
+    const stats = await this.taskService.getGoalTaskStats(userId, goalId);
+
+    const updateQuery: any = {
+      $set: {
+        progressPercentage: stats.progressPercentage,
+      },
+    };
+
+    if (Object.keys(metricIncrement).length) {
+      updateQuery.$inc = metricIncrement;
+    }
+
+    await this.goalModel.findOneAndUpdate(
+      {
+        _id: new Types.ObjectId(goalId),
+        userId: new Types.ObjectId(userId),
+        status: GoalStatus.ACTIVE,
+      },
+      updateQuery,
+      { new: true },
+    );
+
+    await this.createActivity({
+      userId,
+      goalId,
+      type: ActivityType.GOAL_TASK_COMPLETED,
+      message: `Completed task: ${task.title}`,
+      metadata: {
+        taskId: task._id?.toString(),
+        goalActionKey: task.goalActionKey,
+        goalActionType: task.goalActionType,
+        progressPercentage: stats.progressPercentage,
+        completedTasks: stats.completedTasks,
+        totalTasks: stats.totalTasks,
+      },
+    });
+  }
+
   private buildTemplatePlan(dto: CreateGoalDto) {
     const template = this.goalTemplateService.getTemplate(dto.templateKey);
 
@@ -448,17 +524,34 @@ export class GoalsService {
     };
   }
 
-private mapPlanResponse(plan: any) {
-  return {
-    id: plan._id?.toString(),
-    version: plan.version || 1,
-    strategySummary: plan.strategySummary,
-    actions: plan.actions || [],
-    milestones: plan.milestones || [],
-    dailyActions: plan.dailyActions || [],
-    weeklyActions: plan.weeklyActions || [],
-  };
-}
+  private mapPlanResponse(plan: any) {
+    return {
+      id: plan._id?.toString(),
+      version: plan.version || 1,
+      strategySummary: plan.strategySummary,
+      actions: plan.actions || [],
+      milestones: plan.milestones || [],
+      dailyActions: plan.dailyActions || [],
+      weeklyActions: plan.weeklyActions || [],
+    };
+  }
+
+  private getMetricIncrementForActionType(actionType?: string) {
+      switch (actionType) {
+        case 'APPLICATION':
+          return { 'metrics.applicationsSubmitted': 1 };
+
+        case 'OUTREACH':
+          return { 'metrics.emailsSent': 1 };
+
+        case 'FOLLOW_UP':
+          return { 'metrics.emailsSent': 1 };
+
+        default:
+          return {};
+      }
+    }
+
 
   private async createActivity(data: {
     userId: string;

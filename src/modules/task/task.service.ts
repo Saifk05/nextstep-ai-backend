@@ -2,7 +2,11 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
+import { GoalsService } from '../goals/services/goals.service';
+
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 
@@ -11,6 +15,8 @@ import {
   Task,
   TaskDocument,
   TaskStatus,
+  TaskCategory,
+  TaskPriority,
 } from './task.model';
 
 import { CreateTaskDto } from './dto/create-task.dto';
@@ -26,6 +32,9 @@ export class TaskService {
 
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+
+    @Inject(forwardRef(() => GoalsService))
+    private readonly goalsService: GoalsService,
   ) {}
 
   async createTask(userId: string, createTaskDto: CreateTaskDto) {
@@ -45,6 +54,50 @@ export class TaskService {
       message: 'Task created successfully',
       data: task,
     };
+  }
+
+  async createTasksFromGoalPlan(params: {
+    userId: string;
+    goalId: string;
+    goalPlanId: string;
+    actions: any[];
+  }) {
+    const actions = params.actions || [];
+
+    const executableActions = actions.filter((action) =>
+      ['ONCE', 'DAILY', 'WEEKLY'].includes(action.frequency),
+    );
+
+    if (!executableActions.length) {
+      return [];
+    }
+
+    const now = new Date();
+
+    const tasksToCreate = executableActions.map((action) => ({
+      userId: new Types.ObjectId(params.userId),
+      title: action.title,
+      description: action.description || '',
+      dueDate: now,
+      priority: this.mapGoalPriorityToTaskPriority(action.priority),
+      category: TaskCategory.WORK,
+      status: TaskStatus.PENDING,
+      completionType: CompletionType.SELF_CONFIRM,
+      minimumCompletionMinutes:
+        action.metadata?.defaultMinutes && action.metadata.defaultMinutes > 0
+          ? action.metadata.defaultMinutes
+          : 0,
+
+      goalId: new Types.ObjectId(params.goalId),
+      goalPlanId: new Types.ObjectId(params.goalPlanId),
+      goalActionKey: action.key || null,
+      goalActionType: action.actionType || null,
+      goalActionFrequency: action.frequency || null,
+      isGoalTask: true,
+      isDeleted: false,
+    }));
+
+    return this.taskModel.insertMany(tasksToCreate);
   }
 
   async getTasks(userId: string) {
@@ -152,6 +205,9 @@ export class TaskService {
 
     await this.updateUserStreak(userId);
 
+    if (completedTask?.isGoalTask) {
+      await this.goalsService.handleGoalTaskCompleted(userId, completedTask);
+    }
     return {
       success: true,
       message: 'Task completed successfully',
@@ -195,6 +251,10 @@ export class TaskService {
     );
 
     await this.updateUserStreak(userId);
+
+    if (completedTask?.isGoalTask) {
+      await this.goalsService.handleGoalTaskCompleted(userId, completedTask);
+    }
 
     return {
       success: true,
@@ -262,25 +322,21 @@ export class TaskService {
         userId: userObjectId,
         isDeleted: false,
       }),
-
       this.taskModel.countDocuments({
         userId: userObjectId,
         status: TaskStatus.COMPLETED,
         isDeleted: false,
       }),
-
       this.taskModel.countDocuments({
         userId: userObjectId,
         status: TaskStatus.PENDING,
         isDeleted: false,
       }),
-
       this.taskModel.countDocuments({
         userId: userObjectId,
         status: TaskStatus.MISSED,
         isDeleted: false,
       }),
-
       this.taskModel.countDocuments({
         userId: userObjectId,
         isDeleted: false,
@@ -289,7 +345,6 @@ export class TaskService {
           $lt: end,
         },
       }),
-
       this.userModel.findById(userId).select('currentStreak longestStreak'),
     ]);
 
@@ -307,6 +362,7 @@ export class TaskService {
       },
     };
   }
+
   async getTaskSummaryData(userId: string) {
     const userObjectId = new Types.ObjectId(userId);
     const { start, end } = this.getTodayRange();
@@ -324,25 +380,21 @@ export class TaskService {
         userId: userObjectId,
         isDeleted: false,
       }),
-
       this.taskModel.countDocuments({
         userId: userObjectId,
         status: TaskStatus.COMPLETED,
         isDeleted: false,
       }),
-
       this.taskModel.countDocuments({
         userId: userObjectId,
         status: TaskStatus.PENDING,
         isDeleted: false,
       }),
-
       this.taskModel.countDocuments({
         userId: userObjectId,
         status: TaskStatus.MISSED,
         isDeleted: false,
       }),
-
       this.taskModel.countDocuments({
         userId: userObjectId,
         isDeleted: false,
@@ -351,7 +403,6 @@ export class TaskService {
           $lt: end,
         },
       }),
-
       this.taskModel
         .find({
           userId: userObjectId,
@@ -363,7 +414,6 @@ export class TaskService {
         })
         .sort({ dueDate: 1 })
         .limit(5),
-
       this.userModel.findById(userId).select('currentStreak longestStreak'),
     ]);
 
@@ -384,7 +434,79 @@ export class TaskService {
     };
   }
 
+  async getRecentTaskActivity(userId: string) {
+    const { start, end } = this.getTodayRange();
 
+    const tasks = await this.taskModel
+      .find({
+        userId: new Types.ObjectId(userId),
+        isDeleted: false,
+        updatedAt: {
+          $gte: start,
+          $lt: end,
+        },
+      })
+      .sort({
+        updatedAt: -1,
+      })
+      .limit(5)
+      .lean();
+
+    return tasks.map((task) => ({
+      type:
+        task.status === TaskStatus.COMPLETED
+          ? 'TASK_COMPLETED'
+          : 'TASK_UPDATED',
+      title: task.title,
+      description:
+        task.status === TaskStatus.COMPLETED
+          ? `Completed ${task.title}`
+          : `Updated ${task.title}`,
+      date: task.completedAt || task.updatedAt || task.createdAt,
+      icon:
+        task.status === TaskStatus.COMPLETED
+          ? 'checkmark-circle'
+          : 'create-outline',
+    }));
+  }
+
+  async getGoalTaskStats(userId: string, goalId: string) {
+    const filter = {
+      userId: new Types.ObjectId(userId),
+      goalId: new Types.ObjectId(goalId),
+      isGoalTask: true,
+      isDeleted: false,
+    };
+
+    const [totalTasks, completedTasks] = await Promise.all([
+      this.taskModel.countDocuments(filter),
+      this.taskModel.countDocuments({
+        ...filter,
+        status: TaskStatus.COMPLETED,
+      }),
+    ]);
+
+    const progressPercentage =
+      totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+    return {
+      totalTasks,
+      completedTasks,
+      progressPercentage,
+    };
+  }
+
+  private mapGoalPriorityToTaskPriority(priority?: string) {
+    if (priority === TaskPriority.HIGH) {
+      return TaskPriority.HIGH;
+    }
+
+    if (priority === TaskPriority.LOW) {
+      return TaskPriority.LOW;
+    }
+
+    return TaskPriority.MEDIUM;
+  }
 
   private async findUserTask(userId: string, taskId: string) {
     if (!Types.ObjectId.isValid(taskId)) {
@@ -481,45 +603,4 @@ export class TaskService {
 
     return previousDate.getTime() === yesterday.getTime();
   }
-
-
-  async getRecentTaskActivity(userId: string) {
-  const { start, end } = this.getTodayRange();
-
-  const tasks = await this.taskModel
-    .find({
-      userId: new Types.ObjectId(userId),
-      isDeleted: false,
-      updatedAt: {
-        $gte: start,
-        $lt: end,
-      },
-    })
-    .sort({
-      updatedAt: -1,
-    })
-    .limit(5)
-    .lean();
-
-  return tasks.map((task) => ({
-    type:
-      task.status === TaskStatus.COMPLETED
-        ? 'TASK_COMPLETED'
-        : 'TASK_UPDATED',
-
-    title: task.title,
-
-    description:
-      task.status === TaskStatus.COMPLETED
-        ? `Completed ${task.title}`
-        : `Updated ${task.title}`,
-
-    date: task.completedAt || task.updatedAt || task.createdAt,
-
-    icon:
-      task.status === TaskStatus.COMPLETED
-        ? 'checkmark-circle'
-        : 'create-outline',
-  }));
-}
 }
