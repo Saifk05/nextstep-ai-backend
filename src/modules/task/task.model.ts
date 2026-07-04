@@ -65,6 +65,13 @@ export class Task {
   dueDate: Date | null;
 
   @Prop({
+    type: Date,
+    default: null,
+    index: true,
+  })
+  taskDate: Date | null;
+
+  @Prop({
     enum: TaskPriority,
     default: TaskPriority.MEDIUM,
   })
@@ -163,13 +170,37 @@ export const TaskSchema = SchemaFactory.createForClass(Task);
 
 TaskSchema.index({ userId: 1, createdAt: -1 });
 TaskSchema.index({ userId: 1, dueDate: 1 });
+TaskSchema.index({ userId: 1, taskDate: 1 });
 TaskSchema.index({ userId: 1, status: 1 });
 TaskSchema.index({ userId: 1, isDeleted: 1 });
 
 /**
- * Goal Engine Indexes
+ * Goal Engine Compound Indexes
  */
-TaskSchema.index({ goalId: 1 });
-TaskSchema.index({ goalPlanId: 1 });
 TaskSchema.index({ goalId: 1, status: 1 });
 TaskSchema.index({ userId: 1, goalId: 1 });
+
+/**
+ * Prevent duplicate recurring goal tasks.
+ *
+ * Same user + same goal + same action + same logical task date
+ * should exist only once.
+ */
+TaskSchema.index(
+  {
+    userId: 1,
+    goalId: 1,
+    goalActionKey: 1,
+    taskDate: 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: {
+      isGoalTask: true,
+      isDeleted: false,
+      goalId: { $type: 'objectId' },
+      goalActionKey: { $type: 'string' },
+      taskDate: { $type: 'date' },
+    },
+  },
+);

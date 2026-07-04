@@ -64,8 +64,8 @@ export class TaskService {
   }) {
     const actions = params.actions || [];
 
-    const executableActions = actions.filter((action) =>
-      ['ONCE', 'DAILY', 'WEEKLY'].includes(action.frequency),
+    const executableActions = actions.filter(
+      (action) => action.frequency === 'ONCE',
     );
 
     if (!executableActions.length) {
@@ -79,6 +79,7 @@ export class TaskService {
       title: action.title,
       description: action.description || '',
       dueDate: now,
+      taskDate: now,
       priority: this.mapGoalPriorityToTaskPriority(action.priority),
       category: TaskCategory.WORK,
       status: TaskStatus.PENDING,
@@ -494,6 +495,84 @@ export class TaskService {
       completedTasks,
       progressPercentage,
     };
+  }
+
+  async createRecurringGoalTaskIfNotExists(params: {
+    userId: string;
+    goalId: string;
+    goalPlanId: string;
+    action: any;
+    taskDate: Date;
+  }) {
+    const existingTask = await this.taskModel.findOne({
+      userId: new Types.ObjectId(params.userId),
+      goalId: new Types.ObjectId(params.goalId),
+      goalActionKey: params.action.key,
+      taskDate: params.taskDate,
+      isGoalTask: true,
+      isDeleted: false,
+    });
+
+    if (existingTask) {
+      return existingTask;
+    }
+
+    return this.taskModel.create({
+      userId: new Types.ObjectId(params.userId),
+
+      title: params.action.title,
+      description: params.action.description || '',
+
+      dueDate: params.taskDate,
+      taskDate: params.taskDate,
+
+      priority: this.mapGoalPriorityToTaskPriority(
+        params.action.priority,
+      ),
+
+      category: TaskCategory.WORK,
+
+      status: TaskStatus.PENDING,
+
+      completionType: CompletionType.SELF_CONFIRM,
+
+      minimumCompletionMinutes:
+        params.action.metadata?.defaultMinutes &&
+        params.action.metadata.defaultMinutes > 0
+          ? params.action.metadata.defaultMinutes
+          : 0,
+          
+      goalId: new Types.ObjectId(params.goalId),
+      goalPlanId: new Types.ObjectId(params.goalPlanId),
+
+      goalActionKey: params.action.key || null,
+      goalActionType: params.action.actionType || null,
+      goalActionFrequency: params.action.frequency || null,
+
+      isGoalTask: true,
+      isDeleted: false,
+    });
+  }
+
+  async markMissedGoalTasks() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    return this.taskModel.updateMany(
+      {
+        isGoalTask: true,
+        isDeleted: false,
+        status: TaskStatus.PENDING,
+        dueDate: {
+          $lt: today,
+        },
+      },
+      {
+        $set: {
+          status: TaskStatus.MISSED,
+        },
+      },
+    );
   }
 
   private mapGoalPriorityToTaskPriority(priority?: string) {

@@ -9,6 +9,7 @@ import { GoalsService } from './services/goals.service';
 import { GoalsGmailService } from './services/goals-gmail.service';
 import { GoalTemplateService } from './services/goal-template.service';
 import { GoalPlanValidatorService } from './services/goal-plan-validator.service';
+import { GoalTaskSchedulerService } from './services/goal-task-scheduler.service';
 
 import { Goal, GoalSchema } from './schemas/goal.schema';
 import { Recruiter, RecruiterSchema } from './schemas/recruiter.schema';
@@ -21,12 +22,15 @@ import {
 
 import { AiModule } from '../../common/ai/ai.module';
 import { TaskModule } from '../task/task.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
     AiModule,
 
     forwardRef(() => TaskModule),
+
+    forwardRef(() => NotificationsModule),
 
     MongooseModule.forFeature([
       {
@@ -57,12 +61,14 @@ import { TaskModule } from '../task/task.module';
     GoalsGmailService,
     GoalTemplateService,
     GoalPlanValidatorService,
+    GoalTaskSchedulerService,
   ],
   exports: [
     GoalsService,
     GoalsGmailService,
     GoalTemplateService,
     GoalPlanValidatorService,
+    GoalTaskSchedulerService,
   ],
 })
 export class GoalsModule {}
