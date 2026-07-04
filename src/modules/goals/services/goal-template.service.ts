@@ -94,23 +94,37 @@ export class GoalTemplateService {
     return true;
   }
 
-  buildDefaultPlan(templateKey: GoalTemplateKey) {
+  buildDefaultPlan(
+    templateKey: GoalTemplateKey,
+    setupAnswers: Record<string, any> = {},
+  ) {
     const template = this.getTemplate(templateKey);
+
+    const actions = template.actionTemplates
+      .filter((action) => this.shouldIncludeAction(action.key, setupAnswers))
+      .map((action) => {
+        const metadata = this.resolveActionMetadata(
+          action.metadata || {},
+          setupAnswers,
+        );
+
+        return {
+          key: action.key,
+          title: action.title,
+          description: action.description,
+          frequency: action.frequency,
+          priority: action.priority,
+          successCriteria: action.successCriteria,
+          actionType: action.actionType,
+          metadata,
+          completed: false,
+        };
+      });
 
     return {
       strategySummary: template.description,
 
-      actions: template.actionTemplates.map((action) => ({
-        key: action.key,
-        title: action.title,
-        description: action.description,
-        frequency: action.frequency,
-        priority: action.priority,
-        successCriteria: action.successCriteria,
-        actionType: action.actionType,
-        metadata: action.metadata || {},
-        completed: false,
-      })),
+      actions,
 
       milestones: template.milestoneTemplates.map((milestone) => ({
         key: milestone.key,
@@ -122,5 +136,74 @@ export class GoalTemplateService {
 
       metrics: template.defaultMetrics,
     };
+  }
+
+  private resolveActionMetadata(
+    metadata: Record<string, any>,
+    setupAnswers: Record<string, any>,
+  ): Record<string, any> {
+    const resolvedMetadata = { ...metadata };
+
+    const setupAnswerKey = metadata.setupAnswerKey;
+
+    if (!setupAnswerKey) {
+      return resolvedMetadata;
+    }
+
+    const setupValue = setupAnswers[setupAnswerKey];
+
+    if (setupValue === undefined || setupValue === null || setupValue === '') {
+      delete resolvedMetadata.setupAnswerKey;
+      return resolvedMetadata;
+    }
+
+    if (metadata.defaultDailyTarget !== undefined) {
+      resolvedMetadata.defaultDailyTarget = this.toPositiveNumber(
+        setupValue,
+        metadata.defaultDailyTarget,
+      );
+    }
+
+    if (metadata.defaultMinutes !== undefined) {
+      resolvedMetadata.defaultMinutes = this.toPositiveNumber(
+        setupValue,
+        metadata.defaultMinutes,
+      );
+    }
+
+    delete resolvedMetadata.setupAnswerKey;
+
+    return resolvedMetadata;
+  }
+
+  private shouldIncludeAction(
+    actionKey: string,
+    setupAnswers: Record<string, any>,
+  ): boolean {
+    if (
+      actionKey === 'OPTIMIZE_RESUME' &&
+      setupAnswers.currentResumeStatus === 'READY'
+    ) {
+      return false;
+    }
+
+    if (
+      actionKey === 'OPTIMIZE_LINKEDIN' &&
+      setupAnswers.linkedinProfileStatus === 'OPTIMIZED'
+    ) {
+      return false;
+    }
+
+    return true;
+  }
+
+  private toPositiveNumber(value: any, fallback: number): number {
+    const numberValue = Number(value);
+
+    if (!Number.isFinite(numberValue) || numberValue <= 0) {
+      return fallback;
+    }
+
+    return Math.round(numberValue);
   }
 }

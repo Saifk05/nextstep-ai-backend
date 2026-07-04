@@ -272,7 +272,11 @@ export class GoalsService {
       throw new NotFoundException('Goal not found');
     }
 
-    const plan = this.goalTemplateService.buildDefaultPlan(goal.templateKey);
+    const plan = this.goalTemplateService.buildDefaultPlan(
+      goal.templateKey,
+      goal.setupAnswers || {},
+    );
+    // const plan = this.goalTemplateService.buildDefaultPlan(goal.templateKey);
     this.goalPlanValidatorService.validatePlan(plan);
 
     await this.goalPlanModel.updateMany(
@@ -390,7 +394,11 @@ export class GoalsService {
       dto.setupAnswers,
     );
 
-    const plan = this.goalTemplateService.buildDefaultPlan(dto.templateKey);
+    const plan = this.goalTemplateService.buildDefaultPlan(
+      dto.templateKey,
+      dto.setupAnswers || {},
+    );
+    // const plan = this.goalTemplateService.buildDefaultPlan(dto.templateKey);
 
     this.goalPlanValidatorService.validatePlan(plan);
 

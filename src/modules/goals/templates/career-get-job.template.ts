@@ -6,7 +6,7 @@ import {
   GoalType,
 } from '../enums/goals.enum';
 
-export const JOB_SEARCH_TEMPLATE  = {
+export const JOB_SEARCH_TEMPLATE = {
   key: GoalTemplateKey.JOB_SEARCH,
   slug: 'job-search',
   category: GoalCategory.CAREER,
@@ -15,7 +15,7 @@ export const JOB_SEARCH_TEMPLATE  = {
   title: 'Job Search',
   description:
     'Structured job search plan covering resume preparation, applications, recruiter outreach, interview preparation, and offer tracking.',
-    
+
   version: 1,
   isActive: true,
 
@@ -43,7 +43,22 @@ export const JOB_SEARCH_TEMPLATE  = {
       key: 'dailyApplicationTarget',
       label: 'How many jobs do you want to apply to daily?',
       type: 'number',
-      required: false,
+      required: true,
+      placeholder: 'Example: 5',
+    },
+    {
+      key: 'dailyRecruiterOutreachTarget',
+      label: 'How many recruiters do you want to contact daily?',
+      type: 'number',
+      required: true,
+      placeholder: 'Example: 3',
+    },
+    {
+      key: 'dailyInterviewPrepMinutes',
+      label: 'How many minutes do you want to prepare daily?',
+      type: 'number',
+      required: true,
+      placeholder: 'Example: 60',
     },
     {
       key: 'currentResumeStatus',
@@ -51,6 +66,13 @@ export const JOB_SEARCH_TEMPLATE  = {
       type: 'select',
       required: true,
       options: ['NOT_READY', 'NEEDS_UPDATE', 'READY'],
+    },
+    {
+      key: 'linkedinProfileStatus',
+      label: 'Is your LinkedIn profile optimized?',
+      type: 'select',
+      required: true,
+      options: ['NOT_STARTED', 'PARTIALLY_UPDATED', 'OPTIMIZED'],
     },
   ],
 
@@ -96,6 +118,7 @@ export const JOB_SEARCH_TEMPLATE  = {
       actionType: 'APPLICATION',
       metadata: {
         defaultDailyTarget: 5,
+        setupAnswerKey: 'dailyApplicationTarget',
       },
     },
     {
@@ -109,6 +132,7 @@ export const JOB_SEARCH_TEMPLATE  = {
       actionType: 'OUTREACH',
       metadata: {
         defaultDailyTarget: 3,
+        setupAnswerKey: 'dailyRecruiterOutreachTarget',
       },
     },
     {
@@ -132,6 +156,7 @@ export const JOB_SEARCH_TEMPLATE  = {
       actionType: 'PREPARATION',
       metadata: {
         defaultMinutes: 60,
+        setupAnswerKey: 'dailyInterviewPrepMinutes',
       },
     },
     {
