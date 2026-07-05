@@ -61,48 +61,84 @@ export class GoalsGmailService {
     );
 
     const results = [];
-      let detectedApplications = 0;
-      let detectedInterviews = 0;
 
-      for (const email of relevantEmails) {
-        const payload = {
-          userId: new Types.ObjectId(userId),
-          goalId: new Types.ObjectId(goalId),
-          messageId: email.id,
-          threadId: email.threadId,
-          from: email.from,
-          subject: email.subject,
-          snippet: email.snippet,
-          body: email.snippet,
-        };
+    let detectedApplications = 0;
+    let detectedReplies = 0;
+    let detectedInterviews = 0;
+    let detectedOffers = 0;
+    let detectedRejections = 0;
 
-        const interviewResult =
-          await this.goalGmailIntelligenceService.detectInterviewEmail(payload);
+    for (const email of relevantEmails) {
+      const payload = {
+        userId: new Types.ObjectId(userId),
+        goalId: new Types.ObjectId(goalId),
+        messageId: email.id,
+        threadId: email.threadId,
+        from: email.from,
+        subject: email.subject,
+        snippet: email.snippet,
+        body: email.snippet,
+      };
 
-        if (interviewResult) {
-          detectedInterviews++;
-          results.push(interviewResult);
-          continue;
-        }
+      const offerResult =
+        await this.goalGmailIntelligenceService.detectOfferEmail(payload);
 
-        const applicationResult =
-          await this.goalGmailIntelligenceService.detectApplicationEmail(payload);
-
-        if (applicationResult) {
-          detectedApplications++;
-          results.push(applicationResult);
-        }
+      if (offerResult) {
+        detectedOffers++;
+        results.push(offerResult);
+        continue;
       }
 
-      return {
-        message: 'Gmail intelligence sync completed',
-        goalId,
-        goalType: goal.goalType,
-        scannedEmails: emails.length,
-        relevantEmails: relevantEmails.length,
-        detectedApplications,
-        detectedInterviews,
-        results,
-      };
+      const rejectionResult =
+        await this.goalGmailIntelligenceService.detectRejectionEmail(payload);
+
+      if (rejectionResult) {
+        detectedRejections++;
+        results.push(rejectionResult);
+        continue;
+      }
+
+      const interviewResult =
+        await this.goalGmailIntelligenceService.detectInterviewEmail(payload);
+
+      if (interviewResult) {
+        detectedInterviews++;
+        results.push(interviewResult);
+        continue;
+      }
+
+      const replyResult =
+        await this.goalGmailIntelligenceService.detectRecruiterReplyEmail(
+          payload,
+        );
+
+      if (replyResult) {
+        detectedReplies++;
+        results.push(replyResult);
+        continue;
+      }
+
+      const applicationResult =
+        await this.goalGmailIntelligenceService.detectApplicationEmail(payload);
+
+      if (applicationResult) {
+        detectedApplications++;
+        results.push(applicationResult);
+      }
+    }
+
+    return {
+      message: 'Gmail intelligence sync completed',
+      goalId,
+      goalType: goal.goalType,
+      scannedEmails: emails.length,
+      relevantEmails: relevantEmails.length,
+      detectedApplications,
+      detectedReplies,
+      detectedInterviews,
+      detectedOffers,
+      detectedRejections,
+      results,
+    };
   }
 }

@@ -73,6 +73,18 @@ GoalIntelligenceEventSchema.index({
 });
 
 GoalIntelligenceEventSchema.index({
+  applicationId: 1,
+  eventType: 1,
+});
+
+GoalIntelligenceEventSchema.index({
+  userId: 1,
+  goalId: 1,
+  sourceMessageId: 1,
+  eventType: 1,
+});
+
+GoalIntelligenceEventSchema.index({
   processed: 1,
   createdAt: 1,
 });

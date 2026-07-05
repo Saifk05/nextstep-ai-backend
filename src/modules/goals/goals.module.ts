@@ -11,6 +11,7 @@ import { GoalTemplateService } from './services/goal-template.service';
 import { GoalPlanValidatorService } from './services/goal-plan-validator.service';
 import { GoalTaskSchedulerService } from './services/goal-task-scheduler.service';
 // import { GoalGmailIntelligenceService } from './services/goal-gmail-intelligence.service';
+import { GoalIntelligenceCronService } from './services/goal-intelligence-cron.service';
 
 import { Goal, GoalSchema } from './schemas/goal.schema';
 import { Recruiter, RecruiterSchema } from './schemas/recruiter.schema';
@@ -89,6 +90,7 @@ import { GoalGmailIntelligenceService } from './services/goal-gmail-intelligence
     GoalPlanValidatorService,
     GoalTaskSchedulerService,
     GoalIntelligenceService,
+    GoalIntelligenceCronService,
     GoalGmailIntelligenceService,
   ],
   exports: [
@@ -98,6 +100,7 @@ import { GoalGmailIntelligenceService } from './services/goal-gmail-intelligence
     GoalPlanValidatorService,
     GoalTaskSchedulerService,
     GoalIntelligenceService,
+    GoalIntelligenceCronService,
     GoalGmailIntelligenceService,
   ],
 })

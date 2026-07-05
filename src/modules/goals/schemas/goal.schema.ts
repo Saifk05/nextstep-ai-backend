@@ -108,6 +108,9 @@ export class Goal {
   })
   progressPercentage: number;
 
+    @Prop({ default: null })
+    lastIntelligenceSyncAt?: Date;
+
   @Prop({ trim: true })
   aiPlanSummary?: string;
 }
@@ -132,6 +135,7 @@ GoalSchema.index({
 GoalSchema.index({
   userId: 1,
   templateKey: 1,
+  lastIntelligenceSyncAt: 1,
 });
 
 GoalSchema.index(
