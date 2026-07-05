@@ -471,6 +471,22 @@ export class TaskService {
     }));
   }
 
+  async getCompletedGoalActionKeys(
+    userId: string,
+    goalId: string,
+  ): Promise<string[]> {
+    const completedActionKeys = await this.taskModel.distinct('goalActionKey', {
+      userId: new Types.ObjectId(userId),
+      goalId: new Types.ObjectId(goalId),
+      isGoalTask: true,
+      isDeleted: false,
+      status: TaskStatus.COMPLETED,
+      goalActionKey: { $ne: null },
+    });
+
+    return completedActionKeys.filter(Boolean);
+  }
+
   async getGoalTaskStats(userId: string, goalId: string) {
     const filter = {
       userId: new Types.ObjectId(userId),

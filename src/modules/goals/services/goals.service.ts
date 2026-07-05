@@ -407,6 +407,55 @@ export class GoalsService {
     };
   }
 
+  // async handleGoalTaskCompleted(userId: string, task: any) {
+  //   if (!task?.goalId) {
+  //     return;
+  //   }
+
+  //   const goalId = task.goalId.toString();
+
+  //   const metricIncrement = this.getMetricIncrementForActionType(
+  //     task.goalActionType,
+  //   );
+
+  //   const stats = await this.taskService.getGoalTaskStats(userId, goalId);
+
+  //   const updateQuery: any = {
+  //     $set: {
+  //       progressPercentage: stats.progressPercentage,
+  //     },
+  //   };
+
+  //   if (Object.keys(metricIncrement).length) {
+  //     updateQuery.$inc = metricIncrement;
+  //   }
+
+  //   await this.goalModel.findOneAndUpdate(
+  //     {
+  //       _id: new Types.ObjectId(goalId),
+  //       userId: new Types.ObjectId(userId),
+  //       status: GoalStatus.ACTIVE,
+  //     },
+  //     updateQuery,
+  //     { new: true },
+  //   );
+
+  //   await this.createActivity({
+  //     userId,
+  //     goalId,
+  //     type: ActivityType.GOAL_TASK_COMPLETED,
+  //     message: `Completed task: ${task.title}`,
+  //     metadata: {
+  //       taskId: task._id?.toString(),
+  //       goalActionKey: task.goalActionKey,
+  //       goalActionType: task.goalActionType,
+  //       progressPercentage: stats.progressPercentage,
+  //       completedTasks: stats.completedTasks,
+  //       totalTasks: stats.totalTasks,
+  //     },
+  //   });
+  // }
+
   async handleGoalTaskCompleted(userId: string, task: any) {
     if (!task?.goalId) {
       return;
@@ -418,11 +467,32 @@ export class GoalsService {
       task.goalActionType,
     );
 
-    const stats = await this.taskService.getGoalTaskStats(userId, goalId);
+    const activePlan = await this.goalPlanModel
+      .findOne({
+        userId: new Types.ObjectId(userId),
+        goalId: new Types.ObjectId(goalId),
+        isActive: true,
+      })
+      .lean();
+
+    const totalActions = activePlan?.actions?.length || 0;
+
+    const completedActionKeys = await this.taskService.getCompletedGoalActionKeys(
+      userId,
+      goalId,
+    );
+
+    const progressPercentage =
+      totalActions > 0
+        ? Math.min(
+            100,
+            Math.round((completedActionKeys.length / totalActions) * 100),
+          )
+        : 0;
 
     const updateQuery: any = {
       $set: {
-        progressPercentage: stats.progressPercentage,
+        progressPercentage,
       },
     };
 
@@ -449,13 +519,12 @@ export class GoalsService {
         taskId: task._id?.toString(),
         goalActionKey: task.goalActionKey,
         goalActionType: task.goalActionType,
-        progressPercentage: stats.progressPercentage,
-        completedTasks: stats.completedTasks,
-        totalTasks: stats.totalTasks,
+        progressPercentage,
+        completedActions: completedActionKeys.length,
+        totalActions,
       },
     });
   }
-
   private buildTemplatePlan(dto: CreateGoalDto) {
     const template = this.goalTemplateService.getTemplate(dto.templateKey);
 
