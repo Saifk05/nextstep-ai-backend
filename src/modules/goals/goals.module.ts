@@ -10,6 +10,7 @@ import { GoalsGmailService } from './services/goals-gmail.service';
 import { GoalTemplateService } from './services/goal-template.service';
 import { GoalPlanValidatorService } from './services/goal-plan-validator.service';
 import { GoalTaskSchedulerService } from './services/goal-task-scheduler.service';
+// import { GoalGmailIntelligenceService } from './services/goal-gmail-intelligence.service';
 
 import { Goal, GoalSchema } from './schemas/goal.schema';
 import { Recruiter, RecruiterSchema } from './schemas/recruiter.schema';
@@ -20,9 +21,23 @@ import {
   GoalTemplateSchema,
 } from './schemas/goal-template.schema';
 
+import {
+  GoalApplication,
+  GoalApplicationSchema,
+} from './schemas/goal-application.schema';
+
+import {
+  GoalIntelligenceEvent,
+  GoalIntelligenceEventSchema,
+} from './schemas/goal-intelligence-event.schema';
+
+import { GoalIntelligenceService } from './services/goal-intelligence.service';
+import { IntegrationsModule } from '../integrations/integrations.module';
 import { AiModule } from '../../common/ai/ai.module';
 import { TaskModule } from '../task/task.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { GoalGmailIntelligenceService } from './services/goal-gmail-intelligence.service';
+
 
 @Module({
   imports: [
@@ -31,6 +46,9 @@ import { NotificationsModule } from '../notifications/notifications.module';
     forwardRef(() => TaskModule),
 
     forwardRef(() => NotificationsModule),
+
+    forwardRef(() => IntegrationsModule),
+
 
     MongooseModule.forFeature([
       {
@@ -53,6 +71,14 @@ import { NotificationsModule } from '../notifications/notifications.module';
         name: GoalTemplate.name,
         schema: GoalTemplateSchema,
       },
+      {
+        name: GoalApplication.name,
+        schema: GoalApplicationSchema,
+      },
+      {
+        name: GoalIntelligenceEvent.name,
+        schema: GoalIntelligenceEventSchema,
+      },
     ]),
   ],
   controllers: [GoalsController],
@@ -62,6 +88,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
     GoalTemplateService,
     GoalPlanValidatorService,
     GoalTaskSchedulerService,
+    GoalIntelligenceService,
+    GoalGmailIntelligenceService,
   ],
   exports: [
     GoalsService,
@@ -69,6 +97,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
     GoalTemplateService,
     GoalPlanValidatorService,
     GoalTaskSchedulerService,
+    GoalIntelligenceService,
+    GoalGmailIntelligenceService,
   ],
 })
 export class GoalsModule {}

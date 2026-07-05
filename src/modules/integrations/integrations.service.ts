@@ -1385,7 +1385,7 @@ async verifyGoogleConnectOtp(
 }
 async getNotificationGmailData(
   userId: string,
-  accountId: string,
+  accountId?: string,
   after?: Date,
 ) {
   const response = await this.getGoogleGmailMessages(
@@ -1404,7 +1404,7 @@ async getNotificationGmailData(
 
 async getNotificationCalendarData(
   userId: string,
-  accountId: string,
+  accountId?: string,
   after?: Date,
 ) {
   const response = await this.getGoogleCalendarEvents(
