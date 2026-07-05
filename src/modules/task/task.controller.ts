@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
 } from '@nestjs/common';
 
@@ -23,8 +24,16 @@ export class TaskController {
   }
 
   @Get()
-  getTasks(@Req() req: any) {
-    return this.taskService.getTasks(req.user.userId);
+  getTasks(
+    @Req() req,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.taskService.getTasks(
+      req.user.userId,
+      cursor,
+      Number(limit) || 10,
+    );
   }
 
   @Get('today')

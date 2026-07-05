@@ -101,20 +101,60 @@ export class TaskService {
     return this.taskModel.insertMany(tasksToCreate);
   }
 
-  async getTasks(userId: string) {
+
+  async getTasks(
+    userId: string,
+    cursor?: string,
+    limit = 10,
+  ) {
+    const pageLimit = Math.min(Math.max(Number(limit) || 10, 1), 50);
+
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const filter: any = {
+      userId: new Types.ObjectId(userId),
+      isDeleted: false,
+      status: {
+        $in: [TaskStatus.PENDING, TaskStatus.MISSED],
+      },
+      dueDate: {
+        $gte: sevenDaysAgo,
+      },
+    };
+
+    if (cursor && Types.ObjectId.isValid(cursor)) {
+      filter._id = {
+        $lt: new Types.ObjectId(cursor),
+      };
+    }
+
     const tasks = await this.taskModel
-      .find({
-        userId: new Types.ObjectId(userId),
-        isDeleted: false,
-      })
-      .sort({ createdAt: -1 });
+      .find(filter)
+      .select(
+        '_id title description dueDate taskDate priority category status completionType minimumCompletionMinutes proofImage completedAt goalId goalPlanId goalActionKey goalActionType goalActionFrequency isGoalTask createdAt updatedAt',
+      )
+      .sort({ _id: -1 })
+      .limit(pageLimit + 1)
+      .lean();
+
+    const hasMore = tasks.length > pageLimit;
+
+    if (hasMore) {
+      tasks.pop();
+    }
 
     return {
       success: true,
       message: 'Tasks fetched successfully',
       data: tasks,
+      pagination: {
+        hasMore,
+        nextCursor: hasMore ? tasks[tasks.length - 1]?._id : null,
+      },
     };
-  }
+  }  
 
   async getTodayTasks(userId: string) {
     const { start, end } = this.getTodayRange();

@@ -26,8 +26,8 @@ export class GoalTaskSchedulerService {
     private readonly notificationsService: NotificationsService,
   ) {}
 
-  @Cron('*/1 * * * *')
-  // @Cron('5 0 * * *')
+  // @Cron('*/1 * * * *')
+  @Cron('5 0 * * *')
   async generateDailyGoalTasks() {
     this.logger.log('Daily goal task scheduler started');
 
@@ -38,9 +38,9 @@ export class GoalTaskSchedulerService {
     this.logger.log('Daily goal task scheduler completed');
   }
 
-  @Cron('*/1 * * * *')
+  // @Cron('*/1 * * * *')
 
-  // @Cron('10 0 * * 1')
+  @Cron('10 0 * * 1')
   async generateWeeklyGoalTasks() {
     this.logger.log('Weekly goal task scheduler started');
 
