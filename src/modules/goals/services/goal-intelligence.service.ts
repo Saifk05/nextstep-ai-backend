@@ -244,6 +244,8 @@ export class GoalIntelligenceService {
         userId: params.userId,
         goalId: params.goalId,
         company: params.company,
+        position: params.position ?? null,
+
       })
       .sort({ createdAt: -1 })
       .exec();

@@ -171,36 +171,36 @@ export class GoalsService {
   }
 
   async getGoalById(userId: string, goalId: string) {
-    const goal = await this.goalModel
-      .findOne({
-        _id: new Types.ObjectId(goalId),
-        userId: new Types.ObjectId(userId),
-      })
-      .lean();
+  const goal = await this.goalModel
+    .findOne({
+      _id: new Types.ObjectId(goalId),
+      userId: new Types.ObjectId(userId),
+    })
+    .lean();
 
-    if (!goal) {
-      throw new NotFoundException('Goal not found');
-    }
-
-    const plan = await this.goalPlanModel
-      .findOne({
-        userId: new Types.ObjectId(userId),
-        goalId: new Types.ObjectId(goalId),
-        isActive: true,
-      })
-      .lean();
-
-    const recentActivity = await this.activityModel
-      .find({
-        userId: new Types.ObjectId(userId),
-        goalId: new Types.ObjectId(goalId),
-      })
-      .sort({ createdAt: -1 })
-      .limit(10)
-      .lean();
-
-    return this.mapGoalResponse(goal, plan, recentActivity);
+  if (!goal) {
+    throw new NotFoundException('Goal not found');
   }
+
+  const plan = await this.goalPlanModel
+    .findOne({
+      userId: new Types.ObjectId(userId),
+      goalId: new Types.ObjectId(goalId),
+      isActive: true,
+    })
+    .lean();
+
+  const recentActivity = await this.activityModel
+    .find({
+      userId: new Types.ObjectId(userId),
+      goalId: new Types.ObjectId(goalId),
+    })
+    .sort({ createdAt: -1 })
+    .limit(5)
+    .lean();
+
+  return this.mapGoalResponse(goal, plan, recentActivity);
+}
 
   async updateGoal(userId: string, goalId: string, dto: UpdateGoalDto) {
     const updateData: any = {};
@@ -565,41 +565,35 @@ export class GoalsService {
   }
 
   private mapGoalResponse(goal: any, plan?: any, recentActivity: any[] = []) {
-    return {
-      id: goal._id?.toString(),
-      title: goal.title,
-      description: goal.description,
-      category: goal.category,
-      templateKey: goal.templateKey,
-      templateVersion: goal.templateVersion,
-      planSource: goal.planSource,
-      goalType: goal.goalType,
-      status: goal.status,
-      targetDate: goal.targetDate,
-      progressPercentage: goal.progressPercentage || 0,
-      aiPlanSummary: goal.aiPlanSummary,
-      setupAnswers: goal.setupAnswers || {},
-      metrics: {
-        emailsSent: goal.metrics?.emailsSent || 0,
-        replies: goal.metrics?.replies || 0,
-        interviews: goal.metrics?.interviews || 0,
-        offers: goal.metrics?.offers || 0,
-        rejections: goal.metrics?.rejections || 0,
-        followUpsDue: goal.metrics?.followUpsDue || 0,
-        applicationsSubmitted: goal.metrics?.applicationsSubmitted || 0,
-      },
-      plan: plan ? this.mapPlanResponse(plan) : null,
-      recentActivity,
-    };
-  }
+  return {
+    id: goal._id?.toString(),
+    title: goal.title,
+    description: goal.description,
+    category: goal.category,
+    goalType: goal.goalType,
+    status: goal.status,
+    targetDate: goal.targetDate,
+
+    metrics: {
+      emailsSent: goal.metrics?.emailsSent || 0,
+      replies: goal.metrics?.replies || 0,
+      interviews: goal.metrics?.interviews || 0,
+      offers: goal.metrics?.offers || 0,
+      rejections: goal.metrics?.rejections || 0,
+      followUpsDue: goal.metrics?.followUpsDue || 0,
+      applicationsSubmitted: goal.metrics?.applicationsSubmitted || 0,
+    },
+
+    plan: plan ? this.mapPlanResponse(plan) : null,
+
+    recentActivity,
+  };
+}
 
   private mapPlanResponse(plan: any) {
     return {
       id: plan._id?.toString(),
-      version: plan.version || 1,
-      strategySummary: plan.strategySummary,
       actions: plan.actions || [],
-      milestones: plan.milestones || [],
       dailyActions: plan.dailyActions || [],
       weeklyActions: plan.weeklyActions || [],
     };
