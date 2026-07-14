@@ -1,11 +1,21 @@
 // src/modules/goals/schemas/recruiter.schema.ts
 
-import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument, Types } from 'mongoose';
+import {
+  Prop,
+  Schema,
+  SchemaFactory,
+} from '@nestjs/mongoose';
+import {
+  HydratedDocument,
+  Types,
+} from 'mongoose';
 
-import { RecruiterStatus } from '../enums/goals.enum';
+import {
+  RecruiterStatus,
+} from '../enums/goals.enum';
 
-export type RecruiterDocument = HydratedDocument<Recruiter>;
+export type RecruiterDocument =
+  HydratedDocument<Recruiter>;
 
 @Schema({
   timestamps: true,
@@ -65,17 +75,75 @@ export class Recruiter {
   })
   status: RecruiterStatus;
 
+  /*
+   * Date of the first cold email sent
+   * to this recruiter.
+   */
   @Prop()
   firstEmailSentAt?: Date;
 
+  /*
+   * Date of the most recent email sent
+   * to this recruiter.
+   */
   @Prop()
   lastEmailSentAt?: Date;
 
+  /*
+   * Date of the latest incoming reply.
+   */
   @Prop()
   lastReplyAt?: Date;
 
-  @Prop()
+  /*
+   * Date when the next follow-up is due.
+   */
+  @Prop({
+    index: true,
+  })
   followUpDueAt?: Date;
+
+  /*
+   * Number of follow-up emails already sent.
+   *
+   * 0 = no follow-up sent
+   * 1 = first follow-up sent
+   * 2 = second follow-up sent
+   * 3 = final follow-up sent
+   */
+  @Prop({
+    default: 0,
+    min: 0,
+  })
+  followUpCount: number;
+
+  /*
+   * Date when the latest follow-up email
+   * was sent by the user.
+   */
+  @Prop()
+  lastFollowUpAt?: Date;
+
+  /*
+   * Used to prevent duplicate reminders
+   * from the hourly cron.
+   */
+  @Prop()
+  lastReminderSentAt?: Date;
+
+  /*
+   * Date when the outreach was marked
+   * as NO_RESPONSE.
+   */
+  @Prop()
+  noResponseAt?: Date;
+
+  /*
+   * Date when follow-up tracking was closed
+   * because of rejection, offer or no response.
+   */
+  @Prop()
+  closedAt?: Date;
 
   @Prop({
     trim: true,
@@ -98,8 +166,9 @@ export class Recruiter {
 export const RecruiterSchema =
   SchemaFactory.createForClass(Recruiter);
 
-/**
- * Prevent duplicate recruiter records for the same goal.
+/*
+ * Prevent duplicate recruiter records
+ * inside the same goal.
  */
 RecruiterSchema.index(
   {
@@ -111,26 +180,49 @@ RecruiterSchema.index(
   },
 );
 
-/**
- * Used when filtering recruiters by status.
+/*
+ * Used when filtering recruiters
+ * by goal and status.
  */
 RecruiterSchema.index({
   goalId: 1,
   status: 1,
 });
 
-/**
- * Used when fetching recruiters belonging to a user's goal.
+/*
+ * Used when fetching recruiters
+ * belonging to a user's goal.
  */
 RecruiterSchema.index({
   userId: 1,
   goalId: 1,
 });
 
-/**
- * Used when connecting replies and follow-ups through Gmail threads.
+/*
+ * Used when connecting Gmail replies
+ * and follow-up emails through threads.
  */
 RecruiterSchema.index({
   userId: 1,
   gmailThreadId: 1,
+});
+
+/*
+ * Used by GoalFollowUpService cron
+ * to find upcoming and overdue follow-ups.
+ */
+RecruiterSchema.index({
+  status: 1,
+  followUpDueAt: 1,
+});
+
+/*
+ * Used by the follow-up cron when processing
+ * reminders for a specific user's goal.
+ */
+RecruiterSchema.index({
+  userId: 1,
+  goalId: 1,
+  status: 1,
+  followUpDueAt: 1,
 });

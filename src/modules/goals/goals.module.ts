@@ -1,6 +1,9 @@
 // src/modules/goals/goals.module.ts
 
-import { Module, forwardRef } from '@nestjs/common';
+import {
+  Module,
+  forwardRef,
+} from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { GoalsController } from './goals.controller';
@@ -10,13 +13,31 @@ import { GoalsGmailService } from './services/goals-gmail.service';
 import { GoalTemplateService } from './services/goal-template.service';
 import { GoalPlanValidatorService } from './services/goal-plan-validator.service';
 import { GoalTaskSchedulerService } from './services/goal-task-scheduler.service';
-// import { GoalGmailIntelligenceService } from './services/goal-gmail-intelligence.service';
+import { GoalIntelligenceService } from './services/goal-intelligence.service';
 import { GoalIntelligenceCronService } from './services/goal-intelligence-cron.service';
+import { GoalGmailIntelligenceService } from './services/goal-gmail-intelligence.service';
+import { GoalFollowUpService } from './services/goal-follow-up.service';
 
-import { Goal, GoalSchema } from './schemas/goal.schema';
-import { Recruiter, RecruiterSchema } from './schemas/recruiter.schema';
-import { GoalPlan, GoalPlanSchema } from './schemas/goal-plan.schema';
-import { GoalActivity, GoalActivitySchema } from './schemas/goal-activity.schema';
+import {
+  Goal,
+  GoalSchema,
+} from './schemas/goal.schema';
+
+import {
+  Recruiter,
+  RecruiterSchema,
+} from './schemas/recruiter.schema';
+
+import {
+  GoalPlan,
+  GoalPlanSchema,
+} from './schemas/goal-plan.schema';
+
+import {
+  GoalActivity,
+  GoalActivitySchema,
+} from './schemas/goal-activity.schema';
+
 import {
   GoalTemplate,
   GoalTemplateSchema,
@@ -32,24 +53,30 @@ import {
   GoalIntelligenceEventSchema,
 } from './schemas/goal-intelligence-event.schema';
 
-import { GoalIntelligenceService } from './services/goal-intelligence.service';
+/*
+ * Change this import only if your User schema
+ * is stored at another location.
+ */
+import {
+  User,
+  UserSchema,
+} from '../user/user.model';
+
 import { IntegrationsModule } from '../integrations/integrations.module';
-import { AiModule } from '../../common/ai/ai.module';
 import { TaskModule } from '../task/task.module';
 import { NotificationsModule } from '../notifications/notifications.module';
-import { GoalGmailIntelligenceService } from './services/goal-gmail-intelligence.service';
 
+import { AiModule } from '../../common/ai/ai.module';
+import { MailModule } from '../../common/mail/mail.module';
 
 @Module({
   imports: [
     AiModule,
+    MailModule,
 
     forwardRef(() => TaskModule),
-
     forwardRef(() => NotificationsModule),
-
     forwardRef(() => IntegrationsModule),
-
 
     MongooseModule.forFeature([
       {
@@ -80,9 +107,17 @@ import { GoalGmailIntelligenceService } from './services/goal-gmail-intelligence
         name: GoalIntelligenceEvent.name,
         schema: GoalIntelligenceEventSchema,
       },
+      {
+        name: User.name,
+        schema: UserSchema,
+      },
     ]),
   ],
-  controllers: [GoalsController],
+
+  controllers: [
+    GoalsController,
+  ],
+
   providers: [
     GoalsService,
     GoalsGmailService,
@@ -92,7 +127,9 @@ import { GoalGmailIntelligenceService } from './services/goal-gmail-intelligence
     GoalIntelligenceService,
     GoalIntelligenceCronService,
     GoalGmailIntelligenceService,
+    GoalFollowUpService,
   ],
+
   exports: [
     GoalsService,
     GoalsGmailService,
@@ -102,6 +139,7 @@ import { GoalGmailIntelligenceService } from './services/goal-gmail-intelligence
     GoalIntelligenceService,
     GoalIntelligenceCronService,
     GoalGmailIntelligenceService,
+    GoalFollowUpService,
   ],
 })
 export class GoalsModule {}

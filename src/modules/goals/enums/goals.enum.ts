@@ -71,6 +71,7 @@ export enum RecruiterStatus {
   INTERVIEW = 'INTERVIEW',
   REJECTED = 'REJECTED',
   OFFER = 'OFFER',
+  NO_RESPONSE = 'NO_RESPONSE',
 }
 
 export enum ApplicationStatus {
