@@ -35,6 +35,12 @@ import {
 import { GoalTemplateService } from './goal-template.service';
 import { GoalPlanValidatorService } from './goal-plan-validator.service';
 
+
+type TodayGoalStats = {
+  emailsSent: number;
+  applicationsSubmitted: number;
+};
+
 @Injectable()
 export class GoalsService {
   constructor(
@@ -170,11 +176,54 @@ export class GoalsService {
     // return goals.map((goal) => this.mapGoalResponse(goal));
   }
 
-  async getGoalById(userId: string, goalId: string) {
+//   async getGoalById(userId: string, goalId: string) {
+//   const goal = await this.goalModel
+//     .findOne({
+//       _id: new Types.ObjectId(goalId),
+//       userId: new Types.ObjectId(userId),
+//     })
+//     .lean();
+
+//   if (!goal) {
+//     throw new NotFoundException('Goal not found');
+//   }
+
+//   const plan = await this.goalPlanModel
+//     .findOne({
+//       userId: new Types.ObjectId(userId),
+//       goalId: new Types.ObjectId(goalId),
+//       isActive: true,
+//     })
+//     .lean();
+
+//   const recentActivity = await this.activityModel
+//     .find({
+//       userId: new Types.ObjectId(userId),
+//       goalId: new Types.ObjectId(goalId),
+//     })
+//     .sort({ createdAt: -1 })
+//     .limit(5)
+//     .lean();
+
+//   return this.mapGoalResponse(goal, plan, recentActivity);
+// }
+
+async getGoalById(userId: string, goalId: string) {
+  if (!Types.ObjectId.isValid(userId)) {
+    throw new BadRequestException('Invalid user id');
+  }
+
+  if (!Types.ObjectId.isValid(goalId)) {
+    throw new BadRequestException('Invalid goal id');
+  }
+
+  const userObjectId = new Types.ObjectId(userId);
+  const goalObjectId = new Types.ObjectId(goalId);
+
   const goal = await this.goalModel
     .findOne({
-      _id: new Types.ObjectId(goalId),
-      userId: new Types.ObjectId(userId),
+      _id: goalObjectId,
+      userId: userObjectId,
     })
     .lean();
 
@@ -182,24 +231,37 @@ export class GoalsService {
     throw new NotFoundException('Goal not found');
   }
 
-  const plan = await this.goalPlanModel
-    .findOne({
-      userId: new Types.ObjectId(userId),
-      goalId: new Types.ObjectId(goalId),
-      isActive: true,
-    })
-    .lean();
+  const [plan, recentActivity, todayStats] =
+    await Promise.all([
+      this.goalPlanModel
+        .findOne({
+          userId: userObjectId,
+          goalId: goalObjectId,
+          isActive: true,
+        })
+        .lean(),
 
-  const recentActivity = await this.activityModel
-    .find({
-      userId: new Types.ObjectId(userId),
-      goalId: new Types.ObjectId(goalId),
-    })
-    .sort({ createdAt: -1 })
-    .limit(5)
-    .lean();
+      this.activityModel
+        .find({
+          userId: userObjectId,
+          goalId: goalObjectId,
+        })
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .lean(),
 
-  return this.mapGoalResponse(goal, plan, recentActivity);
+      this.getTodayGoalStats(
+        userObjectId,
+        goalObjectId,
+      ),
+    ]);
+
+  return this.mapGoalResponse(
+    goal,
+    plan,
+    recentActivity,
+    todayStats,
+  );
 }
 
   async updateGoal(userId: string, goalId: string, dto: UpdateGoalDto) {
@@ -324,8 +386,8 @@ export class GoalsService {
       version: 1,
       actions: plan.actions,
       milestones: plan.milestones,
-      dailyActions: plan.actions.filter((a) => a.frequency === 'DAILY'),
-      weeklyActions: plan.actions.filter((a) => a.frequency === 'WEEKLY'),
+      dailyActions: plan.actions.filter((a: any) => a.frequency === 'DAILY'),
+      weeklyActions: plan.actions.filter((a: any) => a.frequency === 'WEEKLY'),
       // legacyMilestones: plan.milestones,
       strategySummary: plan.strategySummary,
       isActive: true,
@@ -357,23 +419,51 @@ export class GoalsService {
       .lean();
   }
 
-  async getGoalPlan(userId: string, goalId: string) {
-    await this.ensureGoalBelongsToUser(userId, goalId);
+  // async getGoalPlan(userId: string, goalId: string) {
+  //   await this.ensureGoalBelongsToUser(userId, goalId);
 
-    const plan = await this.goalPlanModel
+  //   const plan = await this.goalPlanModel
+  //     .findOne({
+  //       userId: new Types.ObjectId(userId),
+  //       goalId: new Types.ObjectId(goalId),
+  //       isActive: true,
+  //     })
+  //     .lean();
+
+  //   if (!plan) {
+  //     return null;
+  //   }
+
+  //   return this.mapPlanResponse(plan);
+  // }
+
+  async getGoalPlan(userId: string, goalId: string) {
+  await this.ensureGoalBelongsToUser(userId, goalId);
+
+  const userObjectId = new Types.ObjectId(userId);
+  const goalObjectId = new Types.ObjectId(goalId);
+
+  const [plan, todayStats] = await Promise.all([
+    this.goalPlanModel
       .findOne({
-        userId: new Types.ObjectId(userId),
-        goalId: new Types.ObjectId(goalId),
+        userId: userObjectId,
+        goalId: goalObjectId,
         isActive: true,
       })
-      .lean();
+      .lean(),
 
-    if (!plan) {
-      return null;
-    }
+    this.getTodayGoalStats(
+      userObjectId,
+      goalObjectId,
+    ),
+  ]);
 
-    return this.mapPlanResponse(plan);
+  if (!plan) {
+    return null;
   }
+
+  return this.mapPlanResponse(plan, todayStats);
+}
 
   async getGoalDashboardData(userId: string) {
     const activeGoals = await this.goalModel
@@ -455,6 +545,102 @@ export class GoalsService {
   //     },
   //   });
   // }
+
+  async syncAutomaticDailyTaskCompletion(
+  userId: string,
+  goalId: string,
+) {
+  if (!Types.ObjectId.isValid(userId)) {
+    throw new BadRequestException('Invalid user id');
+  }
+
+  if (!Types.ObjectId.isValid(goalId)) {
+    throw new BadRequestException('Invalid goal id');
+  }
+
+  const userObjectId = new Types.ObjectId(userId);
+  const goalObjectId = new Types.ObjectId(goalId);
+
+  const [plan, todayStats] = await Promise.all([
+    this.goalPlanModel
+      .findOne({
+        userId: userObjectId,
+        goalId: goalObjectId,
+        isActive: true,
+      })
+      .lean(),
+
+    this.getTodayGoalStats(
+      userObjectId,
+      goalObjectId,
+    ),
+  ]);
+
+  if (!plan) {
+    return [];
+  }
+
+  const dailyActions =
+    plan.dailyActions?.length
+      ? plan.dailyActions
+      : (plan.actions || []).filter(
+          (action: any) =>
+            action.frequency === 'DAILY',
+        );
+
+  const automaticActions = [
+    {
+      key: 'SEND_COLD_EMAILS',
+      current: todayStats.emailsSent,
+    },
+    {
+      key: 'APPLY_TO_RELEVANT_JOBS',
+      current:
+        todayStats.applicationsSubmitted,
+    },
+  ];
+
+  const { start, end } =
+    this.getIndiaTodayRange();
+
+  const completedTasks: any[] = [];
+
+  for (const automaticAction of automaticActions) {
+    const planAction = dailyActions.find(
+      (action: any) =>
+        action.key === automaticAction.key,
+    );
+
+    const target = Number(
+      planAction?.metadata
+        ?.defaultDailyTarget || 0,
+    );
+
+    if (
+      target <= 0 ||
+      automaticAction.current < target
+    ) {
+      continue;
+    }
+
+    const completedTask =
+      await this.taskService
+        .completeGoalTaskAutomatically({
+          userId,
+          goalId,
+          goalActionKey:
+            automaticAction.key,
+          start,
+          end,
+        });
+
+    if (completedTask) {
+      completedTasks.push(completedTask);
+    }
+  }
+
+  return completedTasks;
+}
 
   async handleGoalTaskCompleted(userId: string, task: any) {
     if (!task?.goalId) {
@@ -564,7 +750,81 @@ export class GoalsService {
     }
   }
 
-  private mapGoalResponse(goal: any, plan?: any, recentActivity: any[] = []) {
+  private async getTodayGoalStats(
+  userId: Types.ObjectId,
+  goalId: Types.ObjectId,
+): Promise<TodayGoalStats> {
+  const { start, end } = this.getIndiaTodayRange();
+
+  const [emailsSent, applicationsSubmitted] =
+    await Promise.all([
+      this.activityModel.countDocuments({
+        userId,
+        goalId,
+        type: ActivityType.COLD_EMAIL_DETECTED,
+        createdAt: {
+          $gte: start,
+          $lt: end,
+        },
+      }),
+
+      this.activityModel.countDocuments({
+        userId,
+        goalId,
+        type: ActivityType.APPLICATION_DETECTED,
+        createdAt: {
+          $gte: start,
+          $lt: end,
+        },
+      }),
+    ]);
+
+  return {
+    emailsSent,
+    applicationsSubmitted,
+  };
+}
+
+private getIndiaTodayRange(now = new Date()) {
+  const indiaOffsetMilliseconds =
+    5.5 * 60 * 60 * 1000;
+
+  const indiaNow = new Date(
+    now.getTime() + indiaOffsetMilliseconds,
+  );
+
+  const indiaMidnightAsUtc = Date.UTC(
+    indiaNow.getUTCFullYear(),
+    indiaNow.getUTCMonth(),
+    indiaNow.getUTCDate(),
+  );
+
+  const start = new Date(
+    indiaMidnightAsUtc -
+      indiaOffsetMilliseconds,
+  );
+
+  const end = new Date(
+    start.getTime() +
+      24 * 60 * 60 * 1000,
+  );
+
+  return {
+    start,
+    end,
+  };
+}
+
+
+private mapGoalResponse(
+  goal: any,
+  plan?: any,
+  recentActivity: any[] = [],
+  todayStats: TodayGoalStats = {
+    emailsSent: 0,
+    applicationsSubmitted: 0,
+  },
+) {
   return {
     id: goal._id?.toString(),
     title: goal.title,
@@ -573,48 +833,153 @@ export class GoalsService {
     goalType: goal.goalType,
     status: goal.status,
     targetDate: goal.targetDate,
+    progressPercentage:
+      goal.progressPercentage || 0,
 
     metrics: {
-      emailsSent: goal.metrics?.emailsSent || 0,
-      replies: goal.metrics?.replies || 0,
-      interviews: goal.metrics?.interviews || 0,
-      offers: goal.metrics?.offers || 0,
-      rejections: goal.metrics?.rejections || 0,
-      followUpsDue: goal.metrics?.followUpsDue || 0,
-      applicationsSubmitted: goal.metrics?.applicationsSubmitted || 0,
+      emailsSent:
+        goal.metrics?.emailsSent || 0,
+
+      bouncedEmails:
+        goal.metrics?.bouncedEmails || 0,
+
+      replies:
+        goal.metrics?.replies || 0,
+
+      interviews:
+        goal.metrics?.interviews || 0,
+
+      offers:
+        goal.metrics?.offers || 0,
+
+      rejections:
+        goal.metrics?.rejections || 0,
+
+      followUpsDue:
+        goal.metrics?.followUpsDue || 0,
+
+      applicationsSubmitted:
+        goal.metrics?.applicationsSubmitted || 0,
     },
 
-    plan: plan ? this.mapPlanResponse(plan) : null,
+    todayMetrics: {
+      emailsSent: todayStats.emailsSent,
+      applicationsSubmitted:
+        todayStats.applicationsSubmitted,
+    },
+
+    plan: plan
+      ? this.mapPlanResponse(
+          plan,
+          todayStats,
+        )
+      : null,
 
     recentActivity,
   };
 }
 
-  private mapPlanResponse(plan: any) {
-    return {
-      id: plan._id?.toString(),
-      actions: plan.actions || [],
-      dailyActions: plan.dailyActions || [],
-      weeklyActions: plan.weeklyActions || [],
-    };
-  }
+private getMetricIncrementForActionType(
+  _actionType?: string,
+) {
+  return {};
+} 
 
-  private getMetricIncrementForActionType(actionType?: string) {
-      switch (actionType) {
-        case 'APPLICATION':
-          return { 'metrics.applicationsSubmitted': 1 };
+private mapPlanResponse(
+  plan: any,
+  todayStats: TodayGoalStats = {
+    emailsSent: 0,
+    applicationsSubmitted: 0,
+  },
+) {
+  const mapAction = (action: any) => {
+    const normalizedAction =
+      typeof action?.toObject === 'function'
+        ? action.toObject()
+        : action;
 
-        case 'OUTREACH':
-          return { 'metrics.emailsSent': 1 };
+    let current: number | null = null;
+    let target: number | null = null;
 
-        case 'FOLLOW_UP':
-          return { 'metrics.emailsSent': 1 };
+    if (
+      normalizedAction.key ===
+      'SEND_COLD_EMAILS'
+    ) {
+      current = todayStats.emailsSent;
 
-        default:
-          return {};
-      }
+      target =
+        normalizedAction.metadata
+          ?.defaultDailyTarget || 0;
     }
 
+    if (
+      normalizedAction.key ===
+      'APPLY_TO_RELEVANT_JOBS'
+    ) {
+      current =
+        todayStats.applicationsSubmitted;
+
+      target =
+        normalizedAction.metadata
+          ?.defaultDailyTarget || 0;
+    }
+
+    if (
+      current === null ||
+      target === null
+    ) {
+      return normalizedAction;
+    }
+
+    return {
+      ...normalizedAction,
+
+      dailyProgress: {
+        current,
+        target,
+
+        display: `${current}/${target}`,
+
+        targetMet:
+          target > 0 &&
+          current >= target,
+
+        progressPercentage:
+          target > 0
+            ? Math.min(
+                100,
+                Math.round(
+                  (current / target) * 100,
+                ),
+              )
+            : 0,
+      },
+    };
+  };
+
+  return {
+    id: plan._id?.toString(),
+
+    actions:
+      (plan.actions || []).map(mapAction),
+
+    dailyActions:
+      (plan.dailyActions || []).map(
+        mapAction,
+      ),
+
+    weeklyActions:
+      (plan.weeklyActions || []).map(
+        mapAction,
+      ),
+
+    // milestones:
+    //   plan.milestones || [],
+
+    // strategySummary:
+    //   plan.strategySummary || '',
+  };
+}
 
   private async createActivity(data: {
     userId: string;

@@ -65,7 +65,17 @@ export class TaskService {
     const actions = params.actions || [];
 
     const executableActions = actions.filter(
-      (action) => action.frequency === 'ONCE',
+      (action) =>
+        action.frequency === 'ONCE' ||
+        action.frequency === 'DAILY',
+    );
+
+    console.log(
+      'Goal Actions:',
+      executableActions.map(a => ({
+        key: a.key,
+        frequency: a.frequency,
+      })),
     );
 
     if (!executableActions.length) {
@@ -303,6 +313,86 @@ export class TaskService {
       data: completedTask,
     };
   }
+
+  async completeGoalTaskAutomatically(params: {
+  userId: string;
+  goalId: string;
+  goalActionKey: string;
+  start: Date;
+  end: Date;
+}) {
+  if (!Types.ObjectId.isValid(params.userId)) {
+    throw new BadRequestException('Invalid user id');
+  }
+
+  if (!Types.ObjectId.isValid(params.goalId)) {
+    throw new BadRequestException('Invalid goal id');
+  }
+
+  const completedTask =
+    await this.taskModel.findOneAndUpdate(
+      {
+        userId: new Types.ObjectId(params.userId),
+        goalId: new Types.ObjectId(params.goalId),
+
+        goalActionKey: params.goalActionKey,
+
+        isGoalTask: true,
+        isDeleted: false,
+
+        status: {
+          $in: [
+            TaskStatus.PENDING,
+            TaskStatus.MISSED,
+          ],
+        },
+
+        $or: [
+          {
+            taskDate: {
+              $gte: params.start,
+              $lt: params.end,
+            },
+          },
+          {
+            dueDate: {
+              $gte: params.start,
+              $lt: params.end,
+            },
+          },
+        ],
+      },
+      {
+        $set: {
+          status: TaskStatus.COMPLETED,
+          completedAt: new Date(),
+        },
+      },
+      {
+        new: true,
+        sort: {
+          createdAt: -1,
+        },
+      },
+    );
+
+  /*
+   * No matching pending task was found, or the task
+   * was already completed during a previous Gmail sync.
+   */
+  if (!completedTask) {
+    return null;
+  }
+
+  await this.updateUserStreak(params.userId);
+
+  await this.goalsService.handleGoalTaskCompleted(
+    params.userId,
+    completedTask,
+  );
+
+  return completedTask;
+}
 
   async deleteTask(userId: string, taskId: string) {
     await this.findUserTask(userId, taskId);

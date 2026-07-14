@@ -2,22 +2,46 @@
 
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
+
 import { RecruiterStatus } from '../enums/goals.enum';
 
 export type RecruiterDocument = HydratedDocument<Recruiter>;
 
-@Schema({ timestamps: true })
+@Schema({
+  timestamps: true,
+})
 export class Recruiter {
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true, index: true })
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true,
+  })
   userId: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'Goal', required: true, index: true })
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'Goal',
+    required: true,
+    index: true,
+  })
   goalId: Types.ObjectId;
 
-  @Prop({ required: true, trim: true })
+  @Prop({
+    required: true,
+    trim: true,
+  })
   company: string;
 
-  @Prop({ required: true, trim: true })
+  @Prop({
+    trim: true,
+  })
+  position?: string;
+
+  @Prop({
+    required: true,
+    trim: true,
+  })
   recruiterName: string;
 
   @Prop({
@@ -28,7 +52,9 @@ export class Recruiter {
   })
   recruiterEmail: string;
 
-  @Prop({ trim: true })
+  @Prop({
+    trim: true,
+  })
   linkedinUrl?: string;
 
   @Prop({
@@ -40,6 +66,9 @@ export class Recruiter {
   status: RecruiterStatus;
 
   @Prop()
+  firstEmailSentAt?: Date;
+
+  @Prop()
   lastEmailSentAt?: Date;
 
   @Prop()
@@ -48,18 +77,30 @@ export class Recruiter {
   @Prop()
   followUpDueAt?: Date;
 
-  @Prop({ index: true })
+  @Prop({
+    trim: true,
+    index: true,
+  })
   gmailThreadId?: string;
 
-  @Prop({ type: [String], default: [] })
+  @Prop({
+    type: [String],
+    default: [],
+  })
   gmailMessageIds: string[];
 
-  @Prop({ trim: true })
+  @Prop({
+    trim: true,
+  })
   notes?: string;
 }
 
-export const RecruiterSchema = SchemaFactory.createForClass(Recruiter);
+export const RecruiterSchema =
+  SchemaFactory.createForClass(Recruiter);
 
+/**
+ * Prevent duplicate recruiter records for the same goal.
+ */
 RecruiterSchema.index(
   {
     goalId: 1,
@@ -70,12 +111,26 @@ RecruiterSchema.index(
   },
 );
 
+/**
+ * Used when filtering recruiters by status.
+ */
 RecruiterSchema.index({
   goalId: 1,
   status: 1,
 });
 
+/**
+ * Used when fetching recruiters belonging to a user's goal.
+ */
 RecruiterSchema.index({
   userId: 1,
   goalId: 1,
+});
+
+/**
+ * Used when connecting replies and follow-ups through Gmail threads.
+ */
+RecruiterSchema.index({
+  userId: 1,
+  gmailThreadId: 1,
 });

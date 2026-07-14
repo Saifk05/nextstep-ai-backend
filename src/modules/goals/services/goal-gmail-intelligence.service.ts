@@ -8,13 +8,23 @@ import { GoalIntelligenceService } from './goal-intelligence.service';
 type GmailDetectionParams = {
   userId: Types.ObjectId;
   goalId: Types.ObjectId;
+
   messageId: string;
   threadId?: string;
+
   from?: string;
+  to?: string;
+
   subject?: string;
   snippet?: string;
   body?: string;
+
+  labelIds?: string[];
+  receivedAt?: string | Date | null;
+
+  targetRole?: string;
 };
+
 
 @Injectable()
 export class GoalGmailIntelligenceService {
@@ -163,6 +173,8 @@ export class GoalGmailIntelligenceService {
     );
   }
 
+  
+
   async detectRejectionEmail(params: GmailDetectionParams) {
     const text = this.buildSearchText(params);
 
@@ -193,6 +205,250 @@ export class GoalGmailIntelligenceService {
     );
   }
 
+  async detectBounceEmail(params: GmailDetectionParams) {
+  const text = this.buildSearchText(params);
+
+  const patterns = [
+    'delivery has failed',
+    'delivery status notification',
+    'message blocked',
+    'recipient address rejected',
+    'undeliverable',
+    'mail delivery failed',
+    'address not found',
+    'could not be delivered',
+    'wasn\'t delivered',
+    'was not delivered',
+    'returned mail',
+    '550 5.1.1',
+    'user unknown',
+    'invalid recipient',
+  ];
+
+  if (!this.matchesAny(text, patterns)) {
+    return null;
+  }
+
+  const failedRecipient = this.extractFailedRecipient(params);
+  const bounceReason = this.extractBounceReason(text);
+
+  const company = failedRecipient
+    ? this.extractCompanyFromEmail(failedRecipient)
+    : 'Unknown Company';
+
+  return this.goalIntelligenceService.createEmailBouncedEvent({
+    ...this.buildEventPayload(
+      params,
+      100,
+      'EMAIL_BOUNCE_DETECTED',
+    ),
+
+    company,
+    position: params.targetRole,
+    recipientEmail: failedRecipient ?? undefined,
+
+    metadata: {
+      snippet: params.snippet,
+      detectedBy: 'EMAIL_BOUNCE_DETECTED',
+
+      failedRecipient,
+      recipientEmail: failedRecipient,
+      recipientDomain:
+        failedRecipient?.split('@')[1] || null,
+
+      bounceReason,
+      direction: 'INBOUND_SYSTEM',
+    },
+  });
+}
+
+private extractFailedRecipient(
+  params: GmailDetectionParams,
+): string | null {
+  const text = `
+    ${params.subject ?? ''}
+    ${params.snippet ?? ''}
+    ${params.body ?? ''}
+  `;
+
+  const specificPatterns = [
+    /(?:wasn't|was not)\s+delivered\s+to\s+<?([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})>?/i,
+
+    /delivery\s+to\s+the\s+following\s+recipient(?:s)?\s+failed[\s\S]*?<?([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})>?/i,
+
+    /final-recipient:\s*rfc822;\s*<?([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})>?/i,
+
+    /recipient\s+address\s+rejected[:\s]+<?([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})>?/i,
+
+    /original-recipient:\s*rfc822;\s*<?([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})>?/i,
+  ];
+
+  for (const pattern of specificPatterns) {
+    const match = text.match(pattern);
+
+    if (match?.[1]) {
+      return match[1].toLowerCase();
+    }
+  }
+
+const emailMatches = text.match(
+  /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi,
+);
+
+const allEmails: string[] = emailMatches
+  ? Array.from(emailMatches)
+  : [];
+
+const validRecipient = allEmails.find((email: string) => {
+  const normalized = email.toLowerCase();
+
+  return (
+    !normalized.startsWith('mailer-daemon@') &&
+    !normalized.startsWith('postmaster@') &&
+    !normalized.includes('@googlemail.com')
+  );
+});
+
+return validRecipient
+  ? validRecipient.toLowerCase()
+  : null;
+}
+
+private extractBounceReason(text: string): string {
+  if (
+    text.includes('address not found') ||
+    text.includes('user unknown') ||
+    text.includes('550 5.1.1') ||
+    text.includes('invalid recipient')
+  ) {
+    return 'ADDRESS_NOT_FOUND';
+  }
+
+  if (
+    text.includes('mailbox full') ||
+    text.includes('quota exceeded')
+  ) {
+    return 'MAILBOX_FULL';
+  }
+
+  if (
+    text.includes('message blocked') ||
+    text.includes('blocked by')
+  ) {
+    return 'MESSAGE_BLOCKED';
+  }
+
+  if (text.includes('recipient address rejected')) {
+    return 'RECIPIENT_REJECTED';
+  }
+
+  if (
+    text.includes('domain not found') ||
+    text.includes('domain does not exist')
+  ) {
+    return 'DOMAIN_NOT_FOUND';
+  }
+
+  return 'DELIVERY_FAILED';
+}
+
+private extractEmail(value?: string): string | null {
+  if (!value) {
+    return null;
+  }
+
+  const match = value.match(
+    /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i,
+  );
+
+  return match?.[0]?.toLowerCase() || null;
+}
+
+private extractCompanyFromEmail(email: string): string {
+  const domain = email.split('@')[1]?.toLowerCase();
+
+  if (!domain) {
+    return 'Unknown Company';
+  }
+
+  const domainName = domain.split('.')[0];
+
+  const personalDomains = [
+    'gmail',
+    'googlemail',
+    'yahoo',
+    'outlook',
+    'hotmail',
+    'icloud',
+    'protonmail',
+  ];
+
+  if (personalDomains.includes(domainName)) {
+    return 'Unknown Company';
+  }
+
+  return domainName
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((word) => this.capitalize(word))
+    .join(' ');
+}
+  async detectColdEmail(params: GmailDetectionParams) {
+  const isSentEmail = params.labelIds?.includes('SENT');
+
+  if (!isSentEmail) {
+    return null;
+  }
+
+  const text = this.buildSearchText(params);
+
+  const outreachPatterns = [
+    'application for',
+    'opportunities at',
+    'backend developer opportunities',
+    'software engineer opportunities',
+    'full stack developer opportunities',
+    'open to opportunities',
+    'referral request',
+    'attached my resume',
+    'resume for your review',
+    'suitable openings',
+    'any suitable opportunities',
+  ];
+
+  if (!this.matchesAny(text, outreachPatterns)) {
+    return null;
+  }
+
+  const recipientEmail = this.extractEmail(params.to);
+
+  if (!recipientEmail) {
+    return null;
+  }
+
+  const company = this.extractCompanyFromEmail(recipientEmail);
+
+  return this.goalIntelligenceService.createColdEmailDetectedEvent({
+    ...this.buildEventPayload(
+      params,
+      95,
+      'SENT_JOB_OUTREACH_DETECTED',
+    ),
+
+    company,
+    position: params.targetRole,
+    recipientEmail,
+
+    metadata: {
+      snippet: params.snippet,
+      detectedBy: 'SENT_JOB_OUTREACH_DETECTED',
+      recipientEmail,
+      recipientDomain: recipientEmail.split('@')[1] || null,
+      direction: 'OUTBOUND',
+    },
+  });
+}
+
   isPotentialJobSearchEmail(email: {
     from?: string;
     subject?: string;
@@ -207,8 +463,9 @@ export class GoalGmailIntelligenceService {
       'ordered',
       'shipped',
       'shipment',
-      'delivery',
-      'delivered',
+      'package delivered',
+      'delivery tracking',
+      'shipment delivered',
       'tracking',
       'cashback',
       'amazon music',
@@ -234,6 +491,15 @@ export class GoalGmailIntelligenceService {
     'received your application',
     'application submitted',
     'job application',
+
+    'undeliverable',
+    'mail delivery failed',
+    'delivery status notification',
+    'returned mail',
+    'user unknown',
+    'address not found',
+    'invalid recipient',
+
 
     'interview',
     'technical interview',
@@ -285,9 +551,20 @@ export class GoalGmailIntelligenceService {
   }
 
   private buildSearchText(params: GmailDetectionParams): string {
-    return `${params.subject ?? ''} ${params.snippet ?? ''} ${
-      params.body ?? ''
-    }`.toLowerCase();
+    return `
+      ${params.from ?? ''}
+      ${params.to ?? ''}
+      ${params.subject ?? ''}
+      ${params.snippet ?? ''}
+      ${params.body ?? ''}
+    `.toLowerCase();
+  }
+
+  
+  private isSentMessage(
+    params: Pick<GmailDetectionParams, 'labelIds'>,
+  ): boolean {
+    return params.labelIds?.includes('SENT') ?? false;
   }
 
   private buildEventPayload(
@@ -295,18 +572,36 @@ export class GoalGmailIntelligenceService {
     confidenceScore: number,
     detectedBy: string,
   ) {
+    const sourceAddress = this.isSentMessage(params)
+      ? params.to
+      : params.from;
+
     return {
       userId: params.userId,
       goalId: params.goalId,
-      company: this.extractCompanyName(params.from, params.subject),
+
+      company: this.extractCompanyName(
+        sourceAddress,
+        params.subject,
+      ),
+
+      position: params.targetRole,
+
       sourceMessageId: params.messageId,
       sourceThreadId: params.threadId,
+
       sourceEmailFrom: params.from,
       sourceEmailSubject: params.subject,
+
       confidenceScore,
+
       metadata: {
         snippet: params.snippet,
         detectedBy,
+        direction: this.isSentMessage(params)
+          ? 'OUTBOUND'
+          : 'INBOUND',
+        receivedAt: params.receivedAt ?? null,
       },
     };
   }

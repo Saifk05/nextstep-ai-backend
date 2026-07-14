@@ -16,10 +16,10 @@ export type GoalDocument = HydratedDocument<Goal>;
 @Schema({ timestamps: true })
 export class Goal {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true, index: true })
-  userId: Types.ObjectId;
+  userId!: Types.ObjectId;
 
   @Prop({ required: true, trim: true })
-  title: string;
+  title!: string;
 
   @Prop({ trim: true })
   description?: string;
@@ -30,7 +30,7 @@ export class Goal {
     default: GoalCategory.CUSTOM,
     index: true,
   })
-  category: GoalCategory;
+  category!: GoalCategory;
 
   @Prop({
     type: String,
@@ -38,19 +38,19 @@ export class Goal {
     default: GoalTemplateKey.CUSTOM,
     index: true,
   })
-  templateKey: GoalTemplateKey;
+  templateKey!: GoalTemplateKey;
 
   @Prop({
     type: Number,
     default: 1,
   })
-  templateVersion: number;
+  templateVersion!: number;
 
   @Prop({
     type: Object,
     default: {},
   })
-  setupAnswers: Record<string, any>;
+  setupAnswers!: Record<string, any>;
 
   @Prop({
     type: String,
@@ -58,7 +58,7 @@ export class Goal {
     default: GoalPlanSource.TEMPLATE,
     index: true,
   })
-  planSource: GoalPlanSource;
+  planSource!: GoalPlanSource;
 
   @Prop({
     type: String,
@@ -66,10 +66,10 @@ export class Goal {
     default: GoalType.CUSTOM,
     index: true,
   })
-  goalType: GoalType;
+  goalType!: GoalType;
 
   @Prop({ required: true })
-  targetDate: Date;
+  targetDate!: Date;
 
   @Prop({
     type: String,
@@ -77,27 +77,43 @@ export class Goal {
     default: GoalStatus.ACTIVE,
     index: true,
   })
-  status: GoalStatus;
+  status!: GoalStatus;
 
   @Prop({
     type: {
       emailsSent: { type: Number, default: 0 },
+
+      bouncedEmails: { type: Number, default: 0 },
+
       replies: { type: Number, default: 0 },
+
       interviews: { type: Number, default: 0 },
+
       offers: { type: Number, default: 0 },
+
       rejections: { type: Number, default: 0 },
+
       followUpsDue: { type: Number, default: 0 },
+
       applicationsSubmitted: { type: Number, default: 0 },
     },
     default: {},
   })
-  metrics: {
+  metrics!: {
     emailsSent: number;
+
+    bouncedEmails: number;
+
     replies: number;
+
     interviews: number;
+
     offers: number;
+
     rejections: number;
+
     followUpsDue: number;
+
     applicationsSubmitted: number;
   };
 
@@ -106,10 +122,10 @@ export class Goal {
     min: 0,
     max: 100,
   })
-  progressPercentage: number;
+  progressPercentage!: number;
 
-    @Prop({ default: null })
-    lastIntelligenceSyncAt?: Date;
+  @Prop({ default: null })
+  lastIntelligenceSyncAt?: Date;
 
   @Prop({ trim: true })
   aiPlanSummary?: string;

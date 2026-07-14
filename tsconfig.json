@@ -5,6 +5,12 @@
     "resolvePackageJsonExports": true,
     "esModuleInterop": true,
     "isolatedModules": true,
+
+    "strict": false,
+    "strictPropertyInitialization": false,
+    "noImplicitAny": false,
+    "useUnknownInCatchVariables": false,
+
     "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,

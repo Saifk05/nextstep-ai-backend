@@ -629,11 +629,17 @@ private buildCalendarSummary(events: any[]) {
 
     const mappedMessages = await Promise.all(
       messageIds.map(async (message) => {
+        // const detail = await gmail.users.messages.get({
+        //   userId: 'me',
+        //   id: message.id || '',
+        //   format: 'metadata',
+        //   metadataHeaders: ['Subject', 'From', 'Date'],
+        // });
+
         const detail = await gmail.users.messages.get({
           userId: 'me',
           id: message.id || '',
-          format: 'metadata',
-          metadataHeaders: ['Subject', 'From', 'Date'],
+          format: 'full',
         });
 
         const mappedMessage = this.mapGmailMessage(detail.data);
@@ -707,10 +713,55 @@ private buildGmailQuery(
   ];
 
   const categoryQueries: Record<string, string> = {
-    ALL:
-      '(interview OR interviewed OR recruiter OR hiring OR HR OR job OR offer OR selected OR shortlisted OR "follow-up" OR "follow up" OR "next steps" OR deadline OR meeting OR "payment failed" OR "payment unsuccessful" OR renewal OR subscription OR receipt OR invoice OR bill OR order OR delivered OR shipped OR shipment OR tracking OR "out for delivery")',
+    ALL: `(
+      interview OR
+      interviewed OR
+      recruiter OR
+      hiring OR
+      HR OR
+      job OR
+      application OR
+      "application for" OR
+      developer OR
+      "backend developer" OR
+      "software engineer" OR
+      "software developer" OR
+      resume OR
+      "attached my resume" OR
+      opportunities OR
+      offer OR
+      selected OR
+      shortlisted OR
+      "follow-up" OR
+      "follow up" OR
+      "next steps" OR
 
-    INTERVIEW:
+      "delivery status notification" OR
+      "delivery failure" OR
+      "mail delivery failed" OR
+      "address not found" OR
+      undeliverable OR
+      "recipient address rejected" OR
+      "user unknown" OR
+      "invalid recipient" OR
+
+      deadline OR
+      meeting OR
+      "payment failed" OR
+      "payment unsuccessful" OR
+      renewal OR
+      subscription OR
+      receipt OR
+      invoice OR
+      bill OR
+      order OR
+      delivered OR
+      shipped OR
+      shipment OR
+      tracking OR
+      "out for delivery"
+    )`,
+        INTERVIEW:
       '(interview OR interviewed OR recruiter OR hiring OR HR OR job OR offer OR selected OR shortlisted OR "follow-up" OR "follow up" OR "next steps")',
 
     ORDER:
@@ -1125,19 +1176,123 @@ if (
 
     const subject = this.getHeaderValue(headers, 'Subject');
     const from = this.getHeaderValue(headers, 'From');
+    const to = this.getHeaderValue(headers, 'To');
     const date = this.getHeaderValue(headers, 'Date');
+    const messageIdHeader = this.getHeaderValue(headers, 'Message-ID');
+    const inReplyTo = this.getHeaderValue(headers, 'In-Reply-To');
+    const references = this.getHeaderValue(headers, 'References');
+
+    const labelIds = message.labelIds || [];
+
+    const receivedAt = message.internalDate
+      ? new Date(Number(message.internalDate)).toISOString()
+      : date
+        ? new Date(date).toISOString()
+        : null;
 
     return {
       id: message.id || '',
       threadId: message.threadId || '',
+
       subject: subject || '(No subject)',
       from: from || '',
+      to: to || '',
+
       snippet: message.snippet || '',
-      receivedAt: date ? new Date(date).toISOString() : null,
-      isUnread: message.labelIds?.includes('UNREAD') || false,
+      body: this.extractGmailBody(message.payload),
+
+      receivedAt,
+
+      labelIds,
+      isSent: labelIds.includes('SENT'),
+      isUnread: labelIds.includes('UNREAD'),
+
+      messageIdHeader: messageIdHeader || null,
+      inReplyTo: inReplyTo || null,
+      references: references || null,
     };
   }
 
+  private extractGmailBody(
+  payload?: gmail_v1.Schema$MessagePart,
+): string {
+  if (!payload) {
+    return '';
+  }
+
+  const plainTextParts: string[] = [];
+  const htmlParts: string[] = [];
+
+  const walkParts = (part: gmail_v1.Schema$MessagePart) => {
+    const decodedBody = this.decodeGmailBody(part.body?.data);
+
+    if (decodedBody) {
+      if (
+        part.mimeType === 'text/plain' ||
+        part.mimeType === 'message/delivery-status' ||
+        part.mimeType === 'message/rfc822'
+      ) {
+        plainTextParts.push(decodedBody);
+      } else if (part.mimeType === 'text/html') {
+        htmlParts.push(decodedBody);
+      }
+    }
+
+    for (const child of part.parts || []) {
+      walkParts(child);
+    }
+  };
+
+  walkParts(payload);
+
+  if (plainTextParts.length) {
+    return plainTextParts.join('\n').trim();
+  }
+
+  if (htmlParts.length) {
+    return this.stripHtml(htmlParts.join('\n')).trim();
+  }
+
+  return '';
+}
+
+private decodeGmailBody(data?: string | null): string {
+  if (!data) {
+    return '';
+  }
+
+  try {
+    const normalized = data
+      .replace(/-/g, '+')
+      .replace(/_/g, '/');
+
+    const padded = normalized.padEnd(
+      Math.ceil(normalized.length / 4) * 4,
+      '=',
+    );
+
+    return Buffer.from(padded, 'base64').toString('utf8');
+  } catch {
+    return '';
+  }
+}
+
+  private stripHtml(html: string): string {
+    return html
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/p>/gi, '\n')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/gi, '&')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/\s+\n/g, '\n')
+      .replace(/\n\s+/g, '\n')
+      .replace(/[ \t]{2,}/g, ' ')
+      .trim();
+  }
   private getHeaderValue(
     headers: gmail_v1.Schema$MessagePartHeader[],
     name: string,
