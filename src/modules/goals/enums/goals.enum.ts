@@ -147,4 +147,3 @@ export enum ActivityType {
 
   NO_RESPONSE_DETECTED = 'NO_RESPONSE_DETECTED',
 }
-

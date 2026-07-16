@@ -38,8 +38,7 @@ async function bootstrap() {
     configService.get<number>('port') ||
     3000;
 
-  const nodeEnv =
-    configService.get<string>('NODE_ENV') || 'development';
+  const nodeEnv = configService.get<string>('NODE_ENV') || 'development';
 
   await app.listen(port, '0.0.0.0');
 

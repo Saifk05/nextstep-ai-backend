@@ -1,9 +1,6 @@
 // src/modules/goals/goals.module.ts
 
-import {
-  Module,
-  forwardRef,
-} from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { GoalsController } from './goals.controller';
@@ -20,10 +17,7 @@ import { GoalFollowUpService } from './services/goal-follow-up.service';
 import { Goal, GoalSchema } from './schemas/goal.schema';
 import { Recruiter, RecruiterSchema } from './schemas/recruiter.schema';
 
-import {
-  GoalPlan,
-  GoalPlanSchema,
-} from './schemas/goal-plan.schema';
+import { GoalPlan, GoalPlanSchema } from './schemas/goal-plan.schema';
 
 import {
   GoalActivity,
@@ -40,9 +34,12 @@ import {
   GoalApplicationSchema,
 } from './schemas/goal-application.schema';
 
-import { GoalIntelligenceEvent, GoalIntelligenceEventSchema } from './schemas/goal-intelligence-event.schema';
+import {
+  GoalIntelligenceEvent,
+  GoalIntelligenceEventSchema,
+} from './schemas/goal-intelligence-event.schema';
 
-import { User, UserSchema, } from '../user/user.model';
+import { User, UserSchema } from '../user/user.model';
 
 import { IntegrationsModule } from '../integrations/integrations.module';
 import { TaskModule } from '../task/task.module';
@@ -96,9 +93,7 @@ import { MailModule } from '../../common/mail/mail.module';
     ]),
   ],
 
-  controllers: [
-    GoalsController,
-  ],
+  controllers: [GoalsController],
 
   providers: [
     GoalsService,

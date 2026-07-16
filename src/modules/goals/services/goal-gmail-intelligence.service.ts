@@ -25,7 +25,6 @@ type GmailDetectionParams = {
   targetRole?: string;
 };
 
-
 @Injectable()
 export class GoalGmailIntelligenceService {
   constructor(
@@ -173,8 +172,6 @@ export class GoalGmailIntelligenceService {
     );
   }
 
-  
-
   async detectRejectionEmail(params: GmailDetectionParams) {
     const text = this.buildSearchText(params);
 
@@ -206,248 +203,223 @@ export class GoalGmailIntelligenceService {
   }
 
   async detectBounceEmail(params: GmailDetectionParams) {
-  const text = this.buildSearchText(params);
+    const text = this.buildSearchText(params);
 
-  const patterns = [
-    'delivery has failed',
-    'delivery status notification',
-    'message blocked',
-    'recipient address rejected',
-    'undeliverable',
-    'mail delivery failed',
-    'address not found',
-    'could not be delivered',
-    'wasn\'t delivered',
-    'was not delivered',
-    'returned mail',
-    '550 5.1.1',
-    'user unknown',
-    'invalid recipient',
-  ];
+    const patterns = [
+      'delivery has failed',
+      'delivery status notification',
+      'message blocked',
+      'recipient address rejected',
+      'undeliverable',
+      'mail delivery failed',
+      'address not found',
+      'could not be delivered',
+      "wasn't delivered",
+      'was not delivered',
+      'returned mail',
+      '550 5.1.1',
+      'user unknown',
+      'invalid recipient',
+    ];
 
-  if (!this.matchesAny(text, patterns)) {
-    return null;
+    if (!this.matchesAny(text, patterns)) {
+      return null;
+    }
+
+    const failedRecipient = this.extractFailedRecipient(params);
+    const bounceReason = this.extractBounceReason(text);
+
+    const company = failedRecipient
+      ? this.extractCompanyFromEmail(failedRecipient)
+      : 'Unknown Company';
+
+    return this.goalIntelligenceService.createEmailBouncedEvent({
+      ...this.buildEventPayload(params, 100, 'EMAIL_BOUNCE_DETECTED'),
+
+      company,
+      position: params.targetRole,
+      recipientEmail: failedRecipient ?? undefined,
+
+      metadata: {
+        snippet: params.snippet,
+        detectedBy: 'EMAIL_BOUNCE_DETECTED',
+
+        failedRecipient,
+        recipientEmail: failedRecipient,
+        recipientDomain: failedRecipient?.split('@')[1] || null,
+
+        bounceReason,
+        direction: 'INBOUND_SYSTEM',
+      },
+    });
   }
 
-  const failedRecipient = this.extractFailedRecipient(params);
-  const bounceReason = this.extractBounceReason(text);
-
-  const company = failedRecipient
-    ? this.extractCompanyFromEmail(failedRecipient)
-    : 'Unknown Company';
-
-  return this.goalIntelligenceService.createEmailBouncedEvent({
-    ...this.buildEventPayload(
-      params,
-      100,
-      'EMAIL_BOUNCE_DETECTED',
-    ),
-
-    company,
-    position: params.targetRole,
-    recipientEmail: failedRecipient ?? undefined,
-
-    metadata: {
-      snippet: params.snippet,
-      detectedBy: 'EMAIL_BOUNCE_DETECTED',
-
-      failedRecipient,
-      recipientEmail: failedRecipient,
-      recipientDomain:
-        failedRecipient?.split('@')[1] || null,
-
-      bounceReason,
-      direction: 'INBOUND_SYSTEM',
-    },
-  });
-}
-
-private extractFailedRecipient(
-  params: GmailDetectionParams,
-): string | null {
-  const text = `
+  private extractFailedRecipient(params: GmailDetectionParams): string | null {
+    const text = `
     ${params.subject ?? ''}
     ${params.snippet ?? ''}
     ${params.body ?? ''}
   `;
 
-  const specificPatterns = [
-    /(?:wasn't|was not)\s+delivered\s+to\s+<?([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})>?/i,
+    const specificPatterns = [
+      /(?:wasn't|was not)\s+delivered\s+to\s+<?([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})>?/i,
 
-    /delivery\s+to\s+the\s+following\s+recipient(?:s)?\s+failed[\s\S]*?<?([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})>?/i,
+      /delivery\s+to\s+the\s+following\s+recipient(?:s)?\s+failed[\s\S]*?<?([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})>?/i,
 
-    /final-recipient:\s*rfc822;\s*<?([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})>?/i,
+      /final-recipient:\s*rfc822;\s*<?([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})>?/i,
 
-    /recipient\s+address\s+rejected[:\s]+<?([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})>?/i,
+      /recipient\s+address\s+rejected[:\s]+<?([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})>?/i,
 
-    /original-recipient:\s*rfc822;\s*<?([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})>?/i,
-  ];
+      /original-recipient:\s*rfc822;\s*<?([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})>?/i,
+    ];
 
-  for (const pattern of specificPatterns) {
-    const match = text.match(pattern);
+    for (const pattern of specificPatterns) {
+      const match = text.match(pattern);
 
-    if (match?.[1]) {
-      return match[1].toLowerCase();
+      if (match?.[1]) {
+        return match[1].toLowerCase();
+      }
     }
+
+    const emailMatches = text.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi);
+
+    const allEmails: string[] = emailMatches ? Array.from(emailMatches) : [];
+
+    const validRecipient = allEmails.find((email: string) => {
+      const normalized = email.toLowerCase();
+
+      return (
+        !normalized.startsWith('mailer-daemon@') &&
+        !normalized.startsWith('postmaster@') &&
+        !normalized.includes('@googlemail.com')
+      );
+    });
+
+    return validRecipient ? validRecipient.toLowerCase() : null;
   }
 
-const emailMatches = text.match(
-  /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi,
-);
+  private extractBounceReason(text: string): string {
+    if (
+      text.includes('address not found') ||
+      text.includes('user unknown') ||
+      text.includes('550 5.1.1') ||
+      text.includes('invalid recipient')
+    ) {
+      return 'ADDRESS_NOT_FOUND';
+    }
 
-const allEmails: string[] = emailMatches
-  ? Array.from(emailMatches)
-  : [];
+    if (text.includes('mailbox full') || text.includes('quota exceeded')) {
+      return 'MAILBOX_FULL';
+    }
 
-const validRecipient = allEmails.find((email: string) => {
-  const normalized = email.toLowerCase();
+    if (text.includes('message blocked') || text.includes('blocked by')) {
+      return 'MESSAGE_BLOCKED';
+    }
 
-  return (
-    !normalized.startsWith('mailer-daemon@') &&
-    !normalized.startsWith('postmaster@') &&
-    !normalized.includes('@googlemail.com')
-  );
-});
+    if (text.includes('recipient address rejected')) {
+      return 'RECIPIENT_REJECTED';
+    }
 
-return validRecipient
-  ? validRecipient.toLowerCase()
-  : null;
-}
+    if (
+      text.includes('domain not found') ||
+      text.includes('domain does not exist')
+    ) {
+      return 'DOMAIN_NOT_FOUND';
+    }
 
-private extractBounceReason(text: string): string {
-  if (
-    text.includes('address not found') ||
-    text.includes('user unknown') ||
-    text.includes('550 5.1.1') ||
-    text.includes('invalid recipient')
-  ) {
-    return 'ADDRESS_NOT_FOUND';
+    return 'DELIVERY_FAILED';
   }
 
-  if (
-    text.includes('mailbox full') ||
-    text.includes('quota exceeded')
-  ) {
-    return 'MAILBOX_FULL';
+  private extractEmail(value?: string): string | null {
+    if (!value) {
+      return null;
+    }
+
+    const match = value.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
+
+    return match?.[0]?.toLowerCase() || null;
   }
 
-  if (
-    text.includes('message blocked') ||
-    text.includes('blocked by')
-  ) {
-    return 'MESSAGE_BLOCKED';
+  private extractCompanyFromEmail(email: string): string {
+    const domain = email.split('@')[1]?.toLowerCase();
+
+    if (!domain) {
+      return 'Unknown Company';
+    }
+
+    const domainName = domain.split('.')[0];
+
+    const personalDomains = [
+      'gmail',
+      'googlemail',
+      'yahoo',
+      'outlook',
+      'hotmail',
+      'icloud',
+      'protonmail',
+    ];
+
+    if (personalDomains.includes(domainName)) {
+      return 'Unknown Company';
+    }
+
+    return domainName
+      .split(/[-_]/)
+      .filter(Boolean)
+      .map((word) => this.capitalize(word))
+      .join(' ');
   }
-
-  if (text.includes('recipient address rejected')) {
-    return 'RECIPIENT_REJECTED';
-  }
-
-  if (
-    text.includes('domain not found') ||
-    text.includes('domain does not exist')
-  ) {
-    return 'DOMAIN_NOT_FOUND';
-  }
-
-  return 'DELIVERY_FAILED';
-}
-
-private extractEmail(value?: string): string | null {
-  if (!value) {
-    return null;
-  }
-
-  const match = value.match(
-    /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i,
-  );
-
-  return match?.[0]?.toLowerCase() || null;
-}
-
-private extractCompanyFromEmail(email: string): string {
-  const domain = email.split('@')[1]?.toLowerCase();
-
-  if (!domain) {
-    return 'Unknown Company';
-  }
-
-  const domainName = domain.split('.')[0];
-
-  const personalDomains = [
-    'gmail',
-    'googlemail',
-    'yahoo',
-    'outlook',
-    'hotmail',
-    'icloud',
-    'protonmail',
-  ];
-
-  if (personalDomains.includes(domainName)) {
-    return 'Unknown Company';
-  }
-
-  return domainName
-    .split(/[-_]/)
-    .filter(Boolean)
-    .map((word) => this.capitalize(word))
-    .join(' ');
-}
   async detectColdEmail(params: GmailDetectionParams) {
-  const isSentEmail = params.labelIds?.includes('SENT');
+    const isSentEmail = params.labelIds?.includes('SENT');
 
-  if (!isSentEmail) {
-    return null;
-  }
+    if (!isSentEmail) {
+      return null;
+    }
 
-  const text = this.buildSearchText(params);
+    const text = this.buildSearchText(params);
 
-  const outreachPatterns = [
-    'application for',
-    'opportunities at',
-    'backend developer opportunities',
-    'software engineer opportunities',
-    'full stack developer opportunities',
-    'open to opportunities',
-    'referral request',
-    'attached my resume',
-    'resume for your review',
-    'suitable openings',
-    'any suitable opportunities',
-  ];
+    const outreachPatterns = [
+      'application for',
+      'opportunities at',
+      'backend developer opportunities',
+      'software engineer opportunities',
+      'full stack developer opportunities',
+      'open to opportunities',
+      'referral request',
+      'attached my resume',
+      'resume for your review',
+      'suitable openings',
+      'any suitable opportunities',
+    ];
 
-  if (!this.matchesAny(text, outreachPatterns)) {
-    return null;
-  }
+    if (!this.matchesAny(text, outreachPatterns)) {
+      return null;
+    }
 
-  const recipientEmail = this.extractEmail(params.to);
+    const recipientEmail = this.extractEmail(params.to);
 
-  if (!recipientEmail) {
-    return null;
-  }
+    if (!recipientEmail) {
+      return null;
+    }
 
-  const company = this.extractCompanyFromEmail(recipientEmail);
+    const company = this.extractCompanyFromEmail(recipientEmail);
 
-  return this.goalIntelligenceService.createColdEmailDetectedEvent({
-    ...this.buildEventPayload(
-      params,
-      95,
-      'SENT_JOB_OUTREACH_DETECTED',
-    ),
+    return this.goalIntelligenceService.createColdEmailDetectedEvent({
+      ...this.buildEventPayload(params, 95, 'SENT_JOB_OUTREACH_DETECTED'),
 
-    company,
-    position: params.targetRole,
-    recipientEmail,
-
-    metadata: {
-      snippet: params.snippet,
-      detectedBy: 'SENT_JOB_OUTREACH_DETECTED',
+      company,
+      position: params.targetRole,
       recipientEmail,
-      recipientDomain: recipientEmail.split('@')[1] || null,
-      direction: 'OUTBOUND',
-    },
-  });
-}
+
+      metadata: {
+        snippet: params.snippet,
+        detectedBy: 'SENT_JOB_OUTREACH_DETECTED',
+        recipientEmail,
+        recipientDomain: recipientEmail.split('@')[1] || null,
+        direction: 'OUTBOUND',
+      },
+    });
+  }
 
   isPotentialJobSearchEmail(email: {
     from?: string;
@@ -486,65 +458,64 @@ private extractCompanyFromEmail(email: string): string {
     }
 
     const allowedKeywords = [
-    'thank you for applying',
-    'application received',
-    'received your application',
-    'application submitted',
-    'job application',
+      'thank you for applying',
+      'application received',
+      'received your application',
+      'application submitted',
+      'job application',
 
-    'undeliverable',
-    'mail delivery failed',
-    'delivery status notification',
-    'returned mail',
-    'user unknown',
-    'address not found',
-    'invalid recipient',
+      'undeliverable',
+      'mail delivery failed',
+      'delivery status notification',
+      'returned mail',
+      'user unknown',
+      'address not found',
+      'invalid recipient',
 
+      'interview',
+      'technical interview',
+      'coding interview',
+      'google meet',
+      'zoom',
 
-    'interview',
-    'technical interview',
-    'coding interview',
-    'google meet',
-    'zoom',
+      'recruiter',
+      'talent acquisition',
+      'hiring',
+      'hiring team',
+      'hr',
+      'shortlisted',
+      'selected',
 
-    'recruiter',
-    'talent acquisition',
-    'hiring',
-    'hiring team',
-    'hr',
-    'shortlisted',
-    'selected',
+      'offer letter',
+      'job offer',
+      'employment offer',
+      'compensation package',
+      'congratulations',
+      'pleased to offer',
 
-    'offer letter',
-    'job offer',
-    'employment offer',
-    'compensation package',
-    'congratulations',
-    'pleased to offer',
+      'unfortunately',
+      'not selected',
+      'not moving forward',
+      'position filled',
+      'another candidate',
+      'decided not to proceed',
+      'we have decided not to proceed',
+      'moving forward with another candidate',
+      'update on your application',
+      'update on your backend developer application',
 
-    'unfortunately',
-    'not selected',
-    'not moving forward',
-    'position filled',
-    'another candidate',
-    'decided not to proceed',
-    'we have decided not to proceed',
-    'moving forward with another candidate',
-    'update on your application',
-    'update on your backend developer application',
+      'reviewed your profile',
+      'would like to discuss',
+      'like to discuss',
+      'can we schedule a call',
+      'schedule a call',
+      'quick call',
+      'phone screen',
 
-    'reviewed your profile',
-    'would like to discuss',
-    'like to discuss',
-    'can we schedule a call',
-    'schedule a call',
-    'quick call',
-    'phone screen',
-
-    'backend developer',
-    'software engineer',
-    'developer role',
-    'next steps',
+      'backend developer',
+      'software engineer',
+      'developer role',
+      'next steps',
     ];
 
     return allowedKeywords.some((keyword) => text.includes(keyword));
@@ -560,7 +531,6 @@ private extractCompanyFromEmail(email: string): string {
     `.toLowerCase();
   }
 
-  
   private isSentMessage(
     params: Pick<GmailDetectionParams, 'labelIds'>,
   ): boolean {
@@ -572,18 +542,13 @@ private extractCompanyFromEmail(email: string): string {
     confidenceScore: number,
     detectedBy: string,
   ) {
-    const sourceAddress = this.isSentMessage(params)
-      ? params.to
-      : params.from;
+    const sourceAddress = this.isSentMessage(params) ? params.to : params.from;
 
     return {
       userId: params.userId,
       goalId: params.goalId,
 
-      company: this.extractCompanyName(
-        sourceAddress,
-        params.subject,
-      ),
+      company: this.extractCompanyName(sourceAddress, params.subject),
 
       position: params.targetRole,
 
@@ -598,9 +563,7 @@ private extractCompanyFromEmail(email: string): string {
       metadata: {
         snippet: params.snippet,
         detectedBy,
-        direction: this.isSentMessage(params)
-          ? 'OUTBOUND'
-          : 'INBOUND',
+        direction: this.isSentMessage(params) ? 'OUTBOUND' : 'INBOUND',
         receivedAt: params.receivedAt ?? null,
       },
     };
@@ -610,61 +573,61 @@ private extractCompanyFromEmail(email: string): string {
     return patterns.some((pattern) => text.includes(pattern));
   }
 
-    // private extractCompanyName(from?: string, subject?: string): string {
-    // if (from) {
-    //     const domainMatch = from.match(/@([^>\s]+)/);
+  // private extractCompanyName(from?: string, subject?: string): string {
+  // if (from) {
+  //     const domainMatch = from.match(/@([^>\s]+)/);
 
-    //     if (domainMatch?.[1]) {
-    //     const fullDomain = domainMatch[1].toLowerCase();
-    //     const domain = fullDomain.split('.')[0];
+  //     if (domainMatch?.[1]) {
+  //     const fullDomain = domainMatch[1].toLowerCase();
+  //     const domain = fullDomain.split('.')[0];
 
-    //     const personalDomains = [
-    //         'gmail',
-    //         'googlemail',
-    //         'yahoo',
-    //         'outlook',
-    //         'hotmail',
-    //         'icloud',
-    //     ];
+  //     const personalDomains = [
+  //         'gmail',
+  //         'googlemail',
+  //         'yahoo',
+  //         'outlook',
+  //         'hotmail',
+  //         'icloud',
+  //     ];
 
-    //     if (personalDomains.includes(domain)) {
-    //         return 'PERSONAL_EMAIL';
-    //     }
+  //     if (personalDomains.includes(domain)) {
+  //         return 'PERSONAL_EMAIL';
+  //     }
 
-    //     return this.capitalize(domain);
-    //     }
-    // }
+  //     return this.capitalize(domain);
+  //     }
+  // }
 
-    // return 'Unknown Company';
-    // } 
+  // return 'Unknown Company';
+  // }
 
-    private extractCompanyName(from?: string, subject?: string): string {
-  if (from) {
-    const domainMatch = from.match(/@([^>\s]+)/);
+  private extractCompanyName(from?: string, subject?: string): string {
+    if (from) {
+      const domainMatch = from.match(/@([^>\s]+)/);
 
-    if (domainMatch?.[1]) {
-      const fullDomain = domainMatch[1].toLowerCase();
-      const domain = fullDomain.split('.')[0];
+      if (domainMatch?.[1]) {
+        const fullDomain = domainMatch[1].toLowerCase();
+        const domain = fullDomain.split('.')[0];
 
-      const personalDomains = [
-        'gmail',
-        'googlemail',
-        'yahoo',
-        'outlook',
-        'hotmail',
-        'icloud',
-      ];
+        const personalDomains = [
+          'gmail',
+          'googlemail',
+          'yahoo',
+          'outlook',
+          'hotmail',
+          'icloud',
+        ];
 
-      if (personalDomains.includes(domain)) {
-        return 'Unknown Company';
+        if (personalDomains.includes(domain)) {
+          return 'Unknown Company';
+        }
+
+        return this.capitalize(domain);
       }
-
-      return this.capitalize(domain);
     }
-  }
 
-  return 'Unknown Company';
-}
+    return 'Unknown Company';
+  }
   private capitalize(value: string): string {
     return value.charAt(0).toUpperCase() + value.slice(1);
   }

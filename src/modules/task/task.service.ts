@@ -65,14 +65,12 @@ export class TaskService {
     const actions = params.actions || [];
 
     const executableActions = actions.filter(
-      (action) =>
-        action.frequency === 'ONCE' ||
-        action.frequency === 'DAILY',
+      (action) => action.frequency === 'ONCE' || action.frequency === 'DAILY',
     );
 
     console.log(
       'Goal Actions:',
-      executableActions.map(a => ({
+      executableActions.map((a) => ({
         key: a.key,
         frequency: a.frequency,
       })),
@@ -110,7 +108,6 @@ export class TaskService {
 
     return this.taskModel.insertMany(tasksToCreate);
   }
-
 
   // async getTasks(
   //   userId: string,
@@ -164,9 +161,9 @@ export class TaskService {
   //       nextCursor: hasMore ? tasks[tasks.length - 1]?._id : null,
   //     },
   //   };
-  // }  
+  // }
 
-    async getTasks(
+  async getTasks(
     userId: string,
     cursor?: string,
     limit = 10,
@@ -177,25 +174,17 @@ export class TaskService {
       throw new BadRequestException('Invalid user id');
     }
 
-    const pageLimit = Math.min(
-      Math.max(Number(limit) || 10, 1),
-      50,
-    );
+    const pageLimit = Math.min(Math.max(Number(limit) || 10, 1), 50);
 
     const filter: any = {
       userId: new Types.ObjectId(userId),
       isDeleted: false,
     };
 
-    const normalizedStatus =
-      status?.trim().toUpperCase();
+    const normalizedStatus = status?.trim().toUpperCase();
 
-    if (
-      normalizedStatus &&
-      normalizedStatus !== 'ALL'
-    ) {
-      const validStatuses =
-        Object.values(TaskStatus) as string[];
+    if (normalizedStatus && normalizedStatus !== 'ALL') {
+      const validStatuses = Object.values(TaskStatus) as string[];
 
       if (!validStatuses.includes(normalizedStatus)) {
         throw new BadRequestException(
@@ -207,8 +196,7 @@ export class TaskService {
     }
 
     if (date?.trim()) {
-      const { start, end } =
-        this.getIndiaDateRange(date.trim());
+      const { start, end } = this.getIndiaDateRange(date.trim());
 
       filter.$or = [
         {
@@ -228,9 +216,7 @@ export class TaskService {
 
     if (cursor) {
       if (!Types.ObjectId.isValid(cursor)) {
-        throw new BadRequestException(
-          'Invalid task cursor',
-        );
+        throw new BadRequestException('Invalid task cursor');
       }
 
       filter._id = {
@@ -249,17 +235,14 @@ export class TaskService {
       .limit(pageLimit + 1)
       .lean();
 
-    const hasMore =
-      tasks.length > pageLimit;
+    const hasMore = tasks.length > pageLimit;
 
     if (hasMore) {
       tasks.pop();
     }
 
     const nextCursor =
-      hasMore && tasks.length
-        ? tasks[tasks.length - 1]._id.toString()
-        : null;
+      hasMore && tasks.length ? tasks[tasks.length - 1]._id.toString() : null;
 
     return {
       success: true,
@@ -387,9 +370,7 @@ export class TaskService {
     const task = await this.findUserTask(userId, taskId);
 
     if (task.completionType !== CompletionType.PHOTO_PROOF) {
-      throw new BadRequestException(
-        'This task does not require photo proof',
-      );
+      throw new BadRequestException('This task does not require photo proof');
     }
 
     if (!proofImage) {
@@ -428,22 +409,21 @@ export class TaskService {
   }
 
   async completeGoalTaskAutomatically(params: {
-  userId: string;
-  goalId: string;
-  goalActionKey: string;
-  start: Date;
-  end: Date;
-}) {
-  if (!Types.ObjectId.isValid(params.userId)) {
-    throw new BadRequestException('Invalid user id');
-  }
+    userId: string;
+    goalId: string;
+    goalActionKey: string;
+    start: Date;
+    end: Date;
+  }) {
+    if (!Types.ObjectId.isValid(params.userId)) {
+      throw new BadRequestException('Invalid user id');
+    }
 
-  if (!Types.ObjectId.isValid(params.goalId)) {
-    throw new BadRequestException('Invalid goal id');
-  }
+    if (!Types.ObjectId.isValid(params.goalId)) {
+      throw new BadRequestException('Invalid goal id');
+    }
 
-  const completedTask =
-    await this.taskModel.findOneAndUpdate(
+    const completedTask = await this.taskModel.findOneAndUpdate(
       {
         userId: new Types.ObjectId(params.userId),
         goalId: new Types.ObjectId(params.goalId),
@@ -454,10 +434,7 @@ export class TaskService {
         isDeleted: false,
 
         status: {
-          $in: [
-            TaskStatus.PENDING,
-            TaskStatus.MISSED,
-          ],
+          $in: [TaskStatus.PENDING, TaskStatus.MISSED],
         },
 
         $or: [
@@ -489,23 +466,23 @@ export class TaskService {
       },
     );
 
-  /*
-   * No matching pending task was found, or the task
-   * was already completed during a previous Gmail sync.
-   */
-  if (!completedTask) {
-    return null;
+    /*
+     * No matching pending task was found, or the task
+     * was already completed during a previous Gmail sync.
+     */
+    if (!completedTask) {
+      return null;
+    }
+
+    await this.updateUserStreak(params.userId);
+
+    await this.goalsService.handleGoalTaskCompleted(
+      params.userId,
+      completedTask,
+    );
+
+    return completedTask;
   }
-
-  await this.updateUserStreak(params.userId);
-
-  await this.goalsService.handleGoalTaskCompleted(
-    params.userId,
-    completedTask,
-  );
-
-  return completedTask;
-}
 
   async deleteTask(userId: string, taskId: string) {
     await this.findUserTask(userId, taskId);
@@ -785,9 +762,7 @@ export class TaskService {
       dueDate: params.taskDate,
       taskDate: params.taskDate,
 
-      priority: this.mapGoalPriorityToTaskPriority(
-        params.action.priority,
-      ),
+      priority: this.mapGoalPriorityToTaskPriority(params.action.priority),
 
       category: TaskCategory.WORK,
 
@@ -800,7 +775,7 @@ export class TaskService {
         params.action.metadata.defaultMinutes > 0
           ? params.action.metadata.defaultMinutes
           : 0,
-          
+
       goalId: new Types.ObjectId(params.goalId),
       goalPlanId: new Types.ObjectId(params.goalPlanId),
 
@@ -869,7 +844,7 @@ export class TaskService {
       throw new BadRequestException('Task is already completed');
     }
 
-    const createdAt = task.createdAt as Date;
+    const createdAt = task.createdAt;
 
     const allowedCompletionTime = new Date(
       createdAt.getTime() + task.minimumCompletionMinutes * 60 * 1000,
@@ -919,21 +894,15 @@ export class TaskService {
     start: Date;
     end: Date;
   } {
-    const datePattern =
-      /^\d{4}-\d{2}-\d{2}$/;
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
     if (!datePattern.test(date)) {
-      throw new BadRequestException(
-        'Date must use YYYY-MM-DD format',
-      );
+      throw new BadRequestException('Date must use YYYY-MM-DD format');
     }
 
-    const [year, month, day] =
-      date.split('-').map(Number);
+    const [year, month, day] = date.split('-').map(Number);
 
-    const validationDate = new Date(
-      Date.UTC(year, month - 1, day),
-    );
+    const validationDate = new Date(Date.UTC(year, month - 1, day));
 
     const isValidDate =
       validationDate.getUTCFullYear() === year &&
@@ -941,31 +910,24 @@ export class TaskService {
       validationDate.getUTCDate() === day;
 
     if (!isValidDate) {
-      throw new BadRequestException(
-        'Invalid task date',
-      );
+      throw new BadRequestException('Invalid task date');
     }
 
-    const indiaOffsetMilliseconds =
-      5.5 * 60 * 60 * 1000;
+    const indiaOffsetMilliseconds = 5.5 * 60 * 60 * 1000;
 
     /*
-    * Converts midnight in India to UTC.
-    *
-    * Example:
-    * 15 July 00:00 IST
-    * becomes
-    * 14 July 18:30 UTC.
-    */
+     * Converts midnight in India to UTC.
+     *
+     * Example:
+     * 15 July 00:00 IST
+     * becomes
+     * 14 July 18:30 UTC.
+     */
     const start = new Date(
-      Date.UTC(year, month - 1, day) -
-        indiaOffsetMilliseconds,
+      Date.UTC(year, month - 1, day) - indiaOffsetMilliseconds,
     );
 
-    const end = new Date(
-      start.getTime() +
-        24 * 60 * 60 * 1000,
-    );
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
 
     return {
       start,

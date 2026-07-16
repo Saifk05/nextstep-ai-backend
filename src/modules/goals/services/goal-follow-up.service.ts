@@ -1,38 +1,19 @@
 // src/modules/goals/services/goal-follow-up.service.ts
 
-import {
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { InjectModel } from '@nestjs/mongoose';
-import {
-  Model,
-  Types,
-} from 'mongoose';
+import { Model, Types } from 'mongoose';
 
-import {
-  Recruiter,
-  RecruiterDocument,
-} from '../schemas/recruiter.schema';
+import { Recruiter, RecruiterDocument } from '../schemas/recruiter.schema';
 
-import {
-  Goal,
-  GoalDocument,
-} from '../schemas/goal.schema';
+import { Goal, GoalDocument } from '../schemas/goal.schema';
 
-import {
-  User,
-  UserDocument,
-} from '../../user/user.model';
+import { User, UserDocument } from '../../user/user.model';
 
-import {
-  RecruiterStatus,
-} from '../enums/goals.enum';
+import { RecruiterStatus } from '../enums/goals.enum';
 
-import {
-  NotificationsService,
-} from '../../notifications/notifications.service';
+import { NotificationsService } from '../../notifications/notifications.service';
 
 import {
   GoalReminderEmailType,
@@ -46,21 +27,17 @@ interface RecruiterLookupParams {
   threadId?: string;
 }
 
-interface ScheduleInitialFollowUpParams
-  extends RecruiterLookupParams {
+interface ScheduleInitialFollowUpParams extends RecruiterLookupParams {
   sentAt?: Date;
 }
 
-interface MarkFollowUpSentParams
-  extends RecruiterLookupParams {
+interface MarkFollowUpSentParams extends RecruiterLookupParams {
   sentAt?: Date;
 }
 
 @Injectable()
 export class GoalFollowUpService {
-  private readonly logger = new Logger(
-    GoalFollowUpService.name,
-  );
+  private readonly logger = new Logger(GoalFollowUpService.name);
 
   /*
    * Follow-up days are calculated from the date
@@ -70,32 +47,23 @@ export class GoalFollowUpService {
    * Second follow-up: day 15
    * Final follow-up: day 20
    */
-  private readonly followUpDayOffsets = [
-    7,
-    15,
-    20,
-  ];
+  private readonly followUpDayOffsets = [7, 15, 20];
 
   private readonly noResponseAfterDays = 30;
 
   constructor(
     @InjectModel(Recruiter.name)
-    private readonly recruiterModel:
-      Model<RecruiterDocument>,
+    private readonly recruiterModel: Model<RecruiterDocument>,
 
     @InjectModel(Goal.name)
-    private readonly goalModel:
-      Model<GoalDocument>,
+    private readonly goalModel: Model<GoalDocument>,
 
     @InjectModel(User.name)
-    private readonly userModel:
-      Model<UserDocument>,
+    private readonly userModel: Model<UserDocument>,
 
-    private readonly notificationsService:
-      NotificationsService,
+    private readonly notificationsService: NotificationsService,
 
-    private readonly mailService:
-      MailService,
+    private readonly mailService: MailService,
   ) {}
 
   /*
@@ -110,23 +78,18 @@ export class GoalFollowUpService {
   async processFollowUps() {
     const now = new Date();
 
-    this.logger.log(
-      'Starting recruiter follow-up processing',
-    );
+    this.logger.log('Starting recruiter follow-up processing');
 
     /*
      * Process no responses before due reminders.
      * This prevents a recruiter from receiving a
      * follow-up reminder after the 30-day period.
      */
-    const noResponses =
-      await this.processNoResponses(now);
+    const noResponses = await this.processNoResponses(now);
 
-    const tomorrowReminders =
-      await this.sendTomorrowReminders(now);
+    const tomorrowReminders = await this.sendTomorrowReminders(now);
 
-    const dueReminders =
-      await this.processDueFollowUps(now);
+    const dueReminders = await this.processDueFollowUps(now);
 
     const result = {
       noResponses,
@@ -135,9 +98,7 @@ export class GoalFollowUpService {
     };
 
     this.logger.log(
-      `Follow-up processing completed: ${JSON.stringify(
-        result,
-      )}`,
+      `Follow-up processing completed: ${JSON.stringify(result)}`,
     );
 
     return result;
@@ -146,11 +107,8 @@ export class GoalFollowUpService {
   /**
    * Call this when a new cold email is detected.
    */
-  async scheduleInitialFollowUp(
-    params: ScheduleInitialFollowUpParams,
-  ) {
-    const recruiter =
-      await this.findRecruiter(params);
+  async scheduleInitialFollowUp(params: ScheduleInitialFollowUpParams) {
+    const recruiter = await this.findRecruiter(params);
 
     if (!recruiter) {
       this.logger.warn(
@@ -166,10 +124,7 @@ export class GoalFollowUpService {
       recruiter.lastEmailSentAt ||
       new Date();
 
-    const followUpDueAt = this.addDays(
-      sentAt,
-      this.followUpDayOffsets[0],
-    );
+    const followUpDueAt = this.addDays(sentAt, this.followUpDayOffsets[0]);
 
     return this.recruiterModel.findByIdAndUpdate(
       recruiter._id,
@@ -177,16 +132,11 @@ export class GoalFollowUpService {
         $set: {
           status: RecruiterStatus.EMAIL_SENT,
 
-          firstEmailSentAt:
-            (recruiter as any).firstEmailSentAt ||
-            sentAt,
+          firstEmailSentAt: (recruiter as any).firstEmailSentAt || sentAt,
 
           lastEmailSentAt: sentAt,
           followUpDueAt,
-          followUpCount:
-            Number(
-              (recruiter as any).followUpCount,
-            ) || 0,
+          followUpCount: Number((recruiter as any).followUpCount) || 0,
         },
 
         $unset: {
@@ -205,11 +155,8 @@ export class GoalFollowUpService {
    * Call this when Gmail detects that the user
    * sent a follow-up email to the recruiter.
    */
-  async markFollowUpSent(
-    params: MarkFollowUpSentParams,
-  ) {
-    const recruiter =
-      await this.findRecruiter(params);
+  async markFollowUpSent(params: MarkFollowUpSentParams) {
+    const recruiter = await this.findRecruiter(params);
 
     if (!recruiter) {
       this.logger.warn(
@@ -219,29 +166,20 @@ export class GoalFollowUpService {
       return null;
     }
 
-    if (
-      this.isClosedStatus(
-        recruiter.status as RecruiterStatus,
-      )
-    ) {
+    if (this.isClosedStatus(recruiter.status)) {
       return recruiter;
     }
 
-    const sentAt =
-      params.sentAt || new Date();
+    const sentAt = params.sentAt || new Date();
 
     const firstEmailSentAt =
       (recruiter as any).firstEmailSentAt ||
       recruiter.lastEmailSentAt ||
       sentAt;
 
-    const currentFollowUpCount =
-      Number(
-        (recruiter as any).followUpCount,
-      ) || 0;
+    const currentFollowUpCount = Number((recruiter as any).followUpCount) || 0;
 
-    const newFollowUpCount =
-      currentFollowUpCount + 1;
+    const newFollowUpCount = currentFollowUpCount + 1;
 
     /*
      * newFollowUpCount = 1 means the first
@@ -250,10 +188,7 @@ export class GoalFollowUpService {
      * The next due date will therefore use
      * followUpDayOffsets[1], which is day 15.
      */
-    const nextOffset =
-      this.followUpDayOffsets[
-        newFollowUpCount
-      ];
+    const nextOffset = this.followUpDayOffsets[newFollowUpCount];
 
     const update: any = {
       $set: {
@@ -271,23 +206,18 @@ export class GoalFollowUpService {
     };
 
     if (nextOffset !== undefined) {
-      update.$set.followUpDueAt =
-        this.addDays(
-          firstEmailSentAt,
-          nextOffset,
-        );
+      update.$set.followUpDueAt = this.addDays(firstEmailSentAt, nextOffset);
     } else {
       update.$unset.followUpDueAt = 1;
     }
 
-    const updatedRecruiter =
-      await this.recruiterModel.findByIdAndUpdate(
-        recruiter._id,
-        update,
-        {
-          new: true,
-        },
-      );
+    const updatedRecruiter = await this.recruiterModel.findByIdAndUpdate(
+      recruiter._id,
+      update,
+      {
+        new: true,
+      },
+    );
 
     this.logger.log(
       `Follow-up ${newFollowUpCount} recorded for recruiter ${recruiter._id.toString()}`,
@@ -300,11 +230,8 @@ export class GoalFollowUpService {
    * Call this when an incoming recruiter reply
    * is detected.
    */
-  async stopForReply(
-    params: RecruiterLookupParams,
-  ) {
-    const recruiter =
-      await this.findRecruiter(params);
+  async stopForReply(params: RecruiterLookupParams) {
+    const recruiter = await this.findRecruiter(params);
 
     if (!recruiter) {
       return null;
@@ -333,48 +260,39 @@ export class GoalFollowUpService {
    * Call this when Gmail detects a real
    * rejection email.
    */
-  async stopForRejection(
-    params: RecruiterLookupParams,
-  ) {
-    const recruiter =
-      await this.findRecruiter(params);
+  async stopForRejection(params: RecruiterLookupParams) {
+    const recruiter = await this.findRecruiter(params);
 
     if (!recruiter) {
       return null;
     }
 
-    if (
-      recruiter.status ===
-      RecruiterStatus.REJECTED
-    ) {
+    if (recruiter.status === RecruiterStatus.REJECTED) {
       return recruiter;
     }
 
-    const updatedRecruiter =
-      await this.recruiterModel.findByIdAndUpdate(
-        recruiter._id,
-        {
-          $set: {
-            status:
-              RecruiterStatus.REJECTED,
+    const updatedRecruiter = await this.recruiterModel.findByIdAndUpdate(
+      recruiter._id,
+      {
+        $set: {
+          status: RecruiterStatus.REJECTED,
 
-            closedAt: new Date(),
-          },
+          closedAt: new Date(),
+        },
 
-          $unset: {
-            followUpDueAt: 1,
-            lastReminderSentAt: 1,
-          },
+        $unset: {
+          followUpDueAt: 1,
+          lastReminderSentAt: 1,
         },
-        {
-          new: true,
-        },
-      );
+      },
+      {
+        new: true,
+      },
+    );
 
     if (updatedRecruiter) {
       await this.notifyUser({
-        recruiter:
-          updatedRecruiter as RecruiterDocument,
+        recruiter: updatedRecruiter,
 
         type: 'APPLICATION_REJECTED',
       });
@@ -386,11 +304,8 @@ export class GoalFollowUpService {
   /**
    * Call this when an interview email is detected.
    */
-  async stopForInterview(
-    params: RecruiterLookupParams,
-  ) {
-    const recruiter =
-      await this.findRecruiter(params);
+  async stopForInterview(params: RecruiterLookupParams) {
+    const recruiter = await this.findRecruiter(params);
 
     if (!recruiter) {
       return null;
@@ -400,8 +315,7 @@ export class GoalFollowUpService {
       recruiter._id,
       {
         $set: {
-          status:
-            RecruiterStatus.INTERVIEW,
+          status: RecruiterStatus.INTERVIEW,
         },
 
         $unset: {
@@ -418,11 +332,8 @@ export class GoalFollowUpService {
   /**
    * Call this when an offer email is detected.
    */
-  async stopForOffer(
-    params: RecruiterLookupParams,
-  ) {
-    const recruiter =
-      await this.findRecruiter(params);
+  async stopForOffer(params: RecruiterLookupParams) {
+    const recruiter = await this.findRecruiter(params);
 
     if (!recruiter) {
       return null;
@@ -447,32 +358,23 @@ export class GoalFollowUpService {
     );
   }
 
-  private async sendTomorrowReminders(
-    now: Date,
-  ): Promise<number> {
-    const {
-      tomorrowStart,
-      tomorrowEnd,
-    } = this.getIndiaDateRanges(now);
+  private async sendTomorrowReminders(now: Date): Promise<number> {
+    const { tomorrowStart, tomorrowEnd } = this.getIndiaDateRanges(now);
 
-    const recruiters =
-      await this.recruiterModel.find({
-        status:
-          RecruiterStatus.EMAIL_SENT,
+    const recruiters = await this.recruiterModel.find({
+      status: RecruiterStatus.EMAIL_SENT,
 
-        followUpDueAt: {
-          $gte: tomorrowStart,
-          $lt: tomorrowEnd,
-        },
-      });
+      followUpDueAt: {
+        $gte: tomorrowStart,
+        $lt: tomorrowEnd,
+      },
+    });
 
     let sentCount = 0;
 
     for (const recruiter of recruiters) {
       try {
-        const lastReminderSentAt =
-          (recruiter as any)
-            .lastReminderSentAt;
+        const lastReminderSentAt = (recruiter as any).lastReminderSentAt;
 
         /*
          * Prevent the hourly cron from sending
@@ -480,10 +382,7 @@ export class GoalFollowUpService {
          */
         if (
           lastReminderSentAt &&
-          this.isSameIndiaDate(
-            new Date(lastReminderSentAt),
-            now,
-          )
+          this.isSameIndiaDate(new Date(lastReminderSentAt), now)
         ) {
           continue;
         }
@@ -508,9 +407,7 @@ export class GoalFollowUpService {
       } catch (error) {
         this.logger.error(
           `Unable to send tomorrow reminder for recruiter ${recruiter._id.toString()}`,
-          error instanceof Error
-            ? error.stack
-            : String(error),
+          error instanceof Error ? error.stack : String(error),
         );
       }
     }
@@ -518,23 +415,19 @@ export class GoalFollowUpService {
     return sentCount;
   }
 
-  private async processDueFollowUps(
-    now: Date,
-  ): Promise<number> {
+  private async processDueFollowUps(now: Date): Promise<number> {
     /*
      * $lte is used instead of checking only today's
      * date. If the server was offline on the due date,
      * the reminder will still be processed later.
      */
-    const recruiters =
-      await this.recruiterModel.find({
-        status:
-          RecruiterStatus.EMAIL_SENT,
+    const recruiters = await this.recruiterModel.find({
+      status: RecruiterStatus.EMAIL_SENT,
 
-        followUpDueAt: {
-          $lte: now,
-        },
-      });
+      followUpDueAt: {
+        $lte: now,
+      },
+    });
 
     let processedCount = 0;
 
@@ -544,34 +437,30 @@ export class GoalFollowUpService {
          * Atomic update prevents duplicate processing
          * when multiple backend instances run the cron.
          */
-        const updatedRecruiter =
-          await this.recruiterModel.findOneAndUpdate(
-            {
-              _id: recruiter._id,
+        const updatedRecruiter = await this.recruiterModel.findOneAndUpdate(
+          {
+            _id: recruiter._id,
 
-              status:
-                RecruiterStatus.EMAIL_SENT,
-            },
-            {
-              $set: {
-                status:
-                  RecruiterStatus.FOLLOW_UP_DUE,
+            status: RecruiterStatus.EMAIL_SENT,
+          },
+          {
+            $set: {
+              status: RecruiterStatus.FOLLOW_UP_DUE,
 
-                lastReminderSentAt: now,
-              },
+              lastReminderSentAt: now,
             },
-            {
-              new: true,
-            },
-          );
+          },
+          {
+            new: true,
+          },
+        );
 
         if (!updatedRecruiter) {
           continue;
         }
 
         await this.notifyUser({
-          recruiter:
-            updatedRecruiter as RecruiterDocument,
+          recruiter: updatedRecruiter,
 
           type: 'FOLLOW_UP_DUE',
         });
@@ -580,9 +469,7 @@ export class GoalFollowUpService {
       } catch (error) {
         this.logger.error(
           `Unable to process due follow-up for recruiter ${recruiter._id.toString()}`,
-          error instanceof Error
-            ? error.stack
-            : String(error),
+          error instanceof Error ? error.stack : String(error),
         );
       }
     }
@@ -590,84 +477,68 @@ export class GoalFollowUpService {
     return processedCount;
   }
 
-  private async processNoResponses(
-    now: Date,
-  ): Promise<number> {
-    const noResponseThreshold =
-      this.addDays(
-        now,
-        -this.noResponseAfterDays,
-      );
+  private async processNoResponses(now: Date): Promise<number> {
+    const noResponseThreshold = this.addDays(now, -this.noResponseAfterDays);
 
-    const recruiters =
-      await this.recruiterModel.find({
-        status: {
-          $in: [
-            RecruiterStatus.EMAIL_SENT,
-            RecruiterStatus.FOLLOW_UP_DUE,
-          ],
+    const recruiters = await this.recruiterModel.find({
+      status: {
+        $in: [RecruiterStatus.EMAIL_SENT, RecruiterStatus.FOLLOW_UP_DUE],
+      },
+
+      $or: [
+        {
+          firstEmailSentAt: {
+            $lte: noResponseThreshold,
+          },
         },
-
-        $or: [
-          {
-            firstEmailSentAt: {
-              $lte: noResponseThreshold,
-            },
+        {
+          firstEmailSentAt: {
+            $exists: false,
           },
-          {
-            firstEmailSentAt: {
-              $exists: false,
-            },
 
-            lastEmailSentAt: {
-              $lte: noResponseThreshold,
-            },
+          lastEmailSentAt: {
+            $lte: noResponseThreshold,
           },
-        ],
-      });
+        },
+      ],
+    });
 
     let processedCount = 0;
 
     for (const recruiter of recruiters) {
       try {
-        const updatedRecruiter =
-          await this.recruiterModel.findOneAndUpdate(
-            {
-              _id: recruiter._id,
+        const updatedRecruiter = await this.recruiterModel.findOneAndUpdate(
+          {
+            _id: recruiter._id,
 
-              status: {
-                $in: [
-                  RecruiterStatus.EMAIL_SENT,
-                  RecruiterStatus.FOLLOW_UP_DUE,
-                ],
-              },
+            status: {
+              $in: [RecruiterStatus.EMAIL_SENT, RecruiterStatus.FOLLOW_UP_DUE],
             },
-            {
-              $set: {
-                status:
-                  RecruiterStatus.NO_RESPONSE,
+          },
+          {
+            $set: {
+              status: RecruiterStatus.NO_RESPONSE,
 
-                noResponseAt: now,
-                closedAt: now,
-              },
+              noResponseAt: now,
+              closedAt: now,
+            },
 
-              $unset: {
-                followUpDueAt: 1,
-                lastReminderSentAt: 1,
-              },
+            $unset: {
+              followUpDueAt: 1,
+              lastReminderSentAt: 1,
             },
-            {
-              new: true,
-            },
-          );
+          },
+          {
+            new: true,
+          },
+        );
 
         if (!updatedRecruiter) {
           continue;
         }
 
         await this.notifyUser({
-          recruiter:
-            updatedRecruiter as RecruiterDocument,
+          recruiter: updatedRecruiter,
 
           type: 'NO_RESPONSE',
         });
@@ -676,9 +547,7 @@ export class GoalFollowUpService {
       } catch (error) {
         this.logger.error(
           `Unable to process no response for recruiter ${recruiter._id.toString()}`,
-          error instanceof Error
-            ? error.stack
-            : String(error),
+          error instanceof Error ? error.stack : String(error),
         );
       }
     }
@@ -692,111 +561,75 @@ export class GoalFollowUpService {
   }) {
     const recruiter = params.recruiter;
 
-    const userId =
-      recruiter.userId.toString();
+    const userId = recruiter.userId.toString();
 
-    const goalId =
-      recruiter.goalId.toString();
+    const goalId = recruiter.goalId.toString();
 
-    const [user, goal] =
-      await Promise.all([
-        this.userModel
-          .findById(recruiter.userId)
-          .lean(),
+    const [user, goal] = await Promise.all([
+      this.userModel.findById(recruiter.userId).lean(),
 
-        this.goalModel
-          .findById(recruiter.goalId)
-          .lean(),
-      ]);
+      this.goalModel.findById(recruiter.goalId).lean(),
+    ]);
 
     const userData = user as any;
     const goalData = goal as any;
 
-    const userEmail =
-      userData?.email ||
-      userData?.emailAddress ||
-      null;
+    const userEmail = userData?.email || userData?.emailAddress || null;
 
     const firstName =
-      userData?.firstName ||
-      userData?.name?.split(' ')?.[0] ||
-      undefined;
+      userData?.firstName || userData?.name?.split(' ')?.[0] || undefined;
 
     const targetRole =
       goalData?.setupAnswers?.targetRole ||
       goalData?.title ||
       'your job opportunity';
 
-    const recruiterName =
-      recruiter.recruiterName ||
-      undefined;
+    const recruiterName = recruiter.recruiterName || undefined;
 
-    const company =
-      recruiter.company ||
-      undefined;
+    const company = recruiter.company || undefined;
 
     const recruiterOrCompany =
-      recruiterName ||
-      company ||
-      recruiter.recruiterEmail ||
-      'the recruiter';
+      recruiterName || company || recruiter.recruiterEmail || 'the recruiter';
 
-    const followUpNumber =
-      (Number(
-        (recruiter as any).followUpCount,
-      ) || 0) + 1;
+    const followUpNumber = (Number((recruiter as any).followUpCount) || 0) + 1;
 
-    const notificationContent =
-      this.getNotificationContent({
-        type: params.type,
-        recruiterOrCompany,
-        targetRole,
-        followUpNumber,
-      });
+    const notificationContent = this.getNotificationContent({
+      type: params.type,
+      recruiterOrCompany,
+      targetRole,
+      followUpNumber,
+    });
 
     try {
-      await this.notificationsService
-        .createNotification({
-          userId:
-            new Types.ObjectId(userId),
+      await this.notificationsService.createNotification({
+        userId: new Types.ObjectId(userId),
 
-          title:
-            notificationContent.title,
+        title: notificationContent.title,
 
-          message:
-            notificationContent.message,
+        message: notificationContent.message,
 
-          source: 'GOAL',
-          priority:
-            params.type ===
-            'APPLICATION_REJECTED'
-              ? 'HIGH'
-              : 'MEDIUM',
+        source: 'GOAL',
+        priority: params.type === 'APPLICATION_REJECTED' ? 'HIGH' : 'MEDIUM',
 
-          isRead: false,
+        isRead: false,
 
-          metadata: {
-            goalId,
-            recruiterId:
-              recruiter._id.toString(),
+        metadata: {
+          goalId,
+          recruiterId: recruiter._id.toString(),
 
-            recruiterEmail:
-              recruiter.recruiterEmail,
+          recruiterEmail: recruiter.recruiterEmail,
 
-            company:
-              recruiter.company,
+          company: recruiter.company,
 
-            type: params.type,
+          type: params.type,
 
-            followUpNumber,
-          },
-        } as any);
+          followUpNumber,
+        },
+      });
     } catch (error) {
       this.logger.error(
         `Unable to create notification for user ${userId}`,
-        error instanceof Error
-          ? error.stack
-          : String(error),
+        error instanceof Error ? error.stack : String(error),
       );
     }
 
@@ -808,19 +641,16 @@ export class GoalFollowUpService {
       return;
     }
 
-    await this.mailService
-      .sendGoalReminderEmail({
-        to: userEmail,
-        type: params.type,
-        firstName,
-        recruiterName,
-        company,
-        targetRole,
+    await this.mailService.sendGoalReminderEmail({
+      to: userEmail,
+      type: params.type,
+      firstName,
+      recruiterName,
+      company,
+      targetRole,
 
-        dueDate:
-          (recruiter as any)
-            .followUpDueAt,
-      });
+      dueDate: (recruiter as any).followUpDueAt,
+    });
   }
 
   private getNotificationContent(params: {
@@ -832,18 +662,12 @@ export class GoalFollowUpService {
     title: string;
     message: string;
   } {
-    const {
-      type,
-      recruiterOrCompany,
-      targetRole,
-      followUpNumber,
-    } = params;
+    const { type, recruiterOrCompany, targetRole, followUpNumber } = params;
 
     switch (type) {
       case 'FOLLOW_UP_TOMORROW':
         return {
-          title:
-            'Follow-up due tomorrow',
+          title: 'Follow-up due tomorrow',
 
           message:
             `Follow-up ${followUpNumber} with ` +
@@ -853,8 +677,7 @@ export class GoalFollowUpService {
 
       case 'FOLLOW_UP_DUE':
         return {
-          title:
-            'Follow-up due today',
+          title: 'Follow-up due today',
 
           message:
             `You have not received a reply from ` +
@@ -864,8 +687,7 @@ export class GoalFollowUpService {
 
       case 'NO_RESPONSE':
         return {
-          title:
-            'No response after 30 days',
+          title: 'No response after 30 days',
 
           message:
             `No reply was detected from ` +
@@ -876,8 +698,7 @@ export class GoalFollowUpService {
 
       case 'APPLICATION_REJECTED':
         return {
-          title:
-            'Application rejected',
+          title: 'Application rejected',
 
           message:
             `A rejection email from ` +
@@ -892,12 +713,8 @@ export class GoalFollowUpService {
     params: RecruiterLookupParams,
   ): Promise<RecruiterDocument | null> {
     if (
-      !Types.ObjectId.isValid(
-        params.userId,
-      ) ||
-      !Types.ObjectId.isValid(
-        params.goalId,
-      )
+      !Types.ObjectId.isValid(params.userId) ||
+      !Types.ObjectId.isValid(params.goalId)
     ) {
       return null;
     }
@@ -906,17 +723,13 @@ export class GoalFollowUpService {
 
     if (params.recruiterEmail?.trim()) {
       lookupConditions.push({
-        recruiterEmail:
-          params.recruiterEmail
-            .trim()
-            .toLowerCase(),
+        recruiterEmail: params.recruiterEmail.trim().toLowerCase(),
       });
     }
 
     if (params.threadId?.trim()) {
       lookupConditions.push({
-        gmailThreadId:
-          params.threadId.trim(),
+        gmailThreadId: params.threadId.trim(),
       });
     }
 
@@ -925,23 +738,15 @@ export class GoalFollowUpService {
     }
 
     return this.recruiterModel.findOne({
-      userId:
-        new Types.ObjectId(
-          params.userId,
-        ),
+      userId: new Types.ObjectId(params.userId),
 
-      goalId:
-        new Types.ObjectId(
-          params.goalId,
-        ),
+      goalId: new Types.ObjectId(params.goalId),
 
       $or: lookupConditions,
     });
   }
 
-  private isClosedStatus(
-    status: RecruiterStatus,
-  ): boolean {
+  private isClosedStatus(status: RecruiterStatus): boolean {
     return [
       RecruiterStatus.REPLIED,
       RecruiterStatus.INTERVIEW,
@@ -951,50 +756,25 @@ export class GoalFollowUpService {
     ].includes(status);
   }
 
-  private addDays(
-    date: Date,
-    days: number,
-  ): Date {
-    return new Date(
-      date.getTime() +
-        days *
-          24 *
-          60 *
-          60 *
-          1000,
-    );
+  private addDays(date: Date, days: number): Date {
+    return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
   }
 
-  private getIndiaDateRanges(
-    date: Date,
-  ) {
-    const indiaDate =
-      new Intl.DateTimeFormat(
-        'en-CA',
-        {
-          timeZone: 'Asia/Kolkata',
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-        },
-      ).format(date);
+  private getIndiaDateRanges(date: Date) {
+    const indiaDate = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(date);
 
-    const todayStart =
-      new Date(
-        `${indiaDate}T00:00:00+05:30`,
-      );
+    const todayStart = new Date(`${indiaDate}T00:00:00+05:30`);
 
-    const todayEnd =
-      this.addDays(todayStart, 1);
+    const todayEnd = this.addDays(todayStart, 1);
 
-    const tomorrowStart =
-      todayEnd;
+    const tomorrowStart = todayEnd;
 
-    const tomorrowEnd =
-      this.addDays(
-        tomorrowStart,
-        1,
-      );
+    const tomorrowEnd = this.addDays(tomorrowStart, 1);
 
     return {
       todayStart,
@@ -1004,24 +784,14 @@ export class GoalFollowUpService {
     };
   }
 
-  private isSameIndiaDate(
-    firstDate: Date,
-    secondDate: Date,
-  ): boolean {
-    const formatter =
-      new Intl.DateTimeFormat(
-        'en-CA',
-        {
-          timeZone: 'Asia/Kolkata',
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-        },
-      );
+  private isSameIndiaDate(firstDate: Date, secondDate: Date): boolean {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Kolkata',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
 
-    return (
-      formatter.format(firstDate) ===
-      formatter.format(secondDate)
-    );
+    return formatter.format(firstDate) === formatter.format(secondDate);
   }
 }

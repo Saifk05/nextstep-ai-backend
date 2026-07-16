@@ -66,11 +66,7 @@ export class TaskController {
     @Param('id') taskId: string,
     @Body() updateTaskDto: UpdateTaskDto,
   ) {
-    return this.taskService.updateTask(
-      req.user.userId,
-      taskId,
-      updateTaskDto,
-    );
+    return this.taskService.updateTask(req.user.userId, taskId, updateTaskDto);
   }
 
   @Patch(':id/complete')

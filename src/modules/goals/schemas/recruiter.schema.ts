@@ -1,21 +1,11 @@
 // src/modules/goals/schemas/recruiter.schema.ts
 
-import {
-  Prop,
-  Schema,
-  SchemaFactory,
-} from '@nestjs/mongoose';
-import {
-  HydratedDocument,
-  Types,
-} from 'mongoose';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 
-import {
-  RecruiterStatus,
-} from '../enums/goals.enum';
+import { RecruiterStatus } from '../enums/goals.enum';
 
-export type RecruiterDocument =
-  HydratedDocument<Recruiter>;
+export type RecruiterDocument = HydratedDocument<Recruiter>;
 
 @Schema({
   timestamps: true,
@@ -163,8 +153,7 @@ export class Recruiter {
   notes?: string;
 }
 
-export const RecruiterSchema =
-  SchemaFactory.createForClass(Recruiter);
+export const RecruiterSchema = SchemaFactory.createForClass(Recruiter);
 
 /*
  * Prevent duplicate recruiter records

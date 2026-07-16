@@ -29,8 +29,7 @@ export const MESSAGES = {
   PASSWORD_CHANGED_SUCCESSFULLY: 'Password changed successfully',
   PASSWORD_RESET_SUCCESSFULLY: 'Password reset successfully',
   CURRENT_PASSWORD_INCORRECT: 'Current password is incorrect',
-  SAME_PASSWORD_ERROR:
-    'New password cannot be the same as current password',
+  SAME_PASSWORD_ERROR: 'New password cannot be the same as current password',
 
   // OTP
   OTP_SENT_SUCCESSFULLY: 'OTP sent successfully',
@@ -41,25 +40,20 @@ export const MESSAGES = {
   // Account Security
   ACCOUNT_LOCKED:
     'Your account has been locked due to multiple failed attempts',
-  TOO_MANY_LOGIN_ATTEMPTS:
-    'Too many login attempts. Please try again later',
+  TOO_MANY_LOGIN_ATTEMPTS: 'Too many login attempts. Please try again later',
 
   // Token
-    // Token
-    INVALID_TOKEN: 'Invalid or expired token',
-    TOKEN_EXPIRED: 'Token expired',
-    REFRESH_TOKEN_REQUIRED: 'Refresh token is required',
-    TOKEN_REFRESHED_SUCCESSFULLY: 'Token refreshed successfully',
+  // Token
+  INVALID_TOKEN: 'Invalid or expired token',
+  TOKEN_EXPIRED: 'Token expired',
+  REFRESH_TOKEN_REQUIRED: 'Refresh token is required',
+  TOKEN_REFRESHED_SUCCESSFULLY: 'Token refreshed successfully',
 
   // Google OAuth
   GOOGLE_LOGIN_SUCCESSFUL: 'Google login successful',
   GOOGLE_ACCOUNT_NOT_FOUND: 'Google account not found',
 
   // Onboarding
-  GMAIL_CONNECTED_SUCCESSFULLY:
-    'Gmail connected successfully',
-  CALENDAR_CONNECTED_SUCCESSFULLY:
-    'Calendar connected successfully',
-
-  
+  GMAIL_CONNECTED_SUCCESSFULLY: 'Gmail connected successfully',
+  CALENDAR_CONNECTED_SUCCESSFULLY: 'Calendar connected successfully',
 };

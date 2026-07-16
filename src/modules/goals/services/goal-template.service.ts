@@ -5,10 +5,7 @@ import {
 } from '@nestjs/common';
 
 import { GoalCategory, GoalTemplateKey } from '../enums/goals.enum';
-import {
-  GOAL_TEMPLATE_MAP,
-  GOAL_TEMPLATES,
-} from '../templates';
+import { GOAL_TEMPLATE_MAP, GOAL_TEMPLATES } from '../templates';
 
 @Injectable()
 export class GoalTemplateService {
@@ -44,23 +41,17 @@ export class GoalTemplateService {
     const template = GOAL_TEMPLATE_MAP[templateKey];
 
     if (!template) {
-      throw new NotFoundException(
-        `Goal template "${templateKey}" not found`,
-      );
+      throw new NotFoundException(`Goal template "${templateKey}" not found`);
     }
 
     return template;
   }
 
   getTemplateBySlug(slug: string) {
-    const template = GOAL_TEMPLATES.find(
-      (template) => template.slug === slug,
-    );
+    const template = GOAL_TEMPLATES.find((template) => template.slug === slug);
 
     if (!template) {
-      throw new NotFoundException(
-        `Goal template "${slug}" not found`,
-      );
+      throw new NotFoundException(`Goal template "${slug}" not found`);
     }
 
     return template;

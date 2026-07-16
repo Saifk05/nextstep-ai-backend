@@ -118,8 +118,8 @@ export class GoalIntelligenceCronService {
         }
 
         await this.goalIntelligenceService.createNoResponseDetectedEvent({
-          userId: application.userId as Types.ObjectId,
-          goalId: application.goalId as Types.ObjectId,
+          userId: application.userId,
+          goalId: application.goalId,
           company: application.company,
           position: application.position,
           sourceMessageId: `NO_RESPONSE_${application._id.toString()}`,

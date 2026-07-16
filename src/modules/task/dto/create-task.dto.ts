@@ -9,11 +9,7 @@ import {
   Min,
 } from 'class-validator';
 
-import {
-  CompletionType,
-  TaskCategory,
-  TaskPriority,
-} from '../task.model';
+import { CompletionType, TaskCategory, TaskPriority } from '../task.model';
 
 export class CreateTaskDto {
   @IsString()

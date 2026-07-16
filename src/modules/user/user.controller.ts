@@ -15,10 +15,7 @@ import type { Request, Response } from 'express';
 import { memoryStorage } from 'multer';
 
 import { MESSAGES } from '../../common/constants';
-import {
-  BadRequestError,
-  UnauthenticatedError,
-} from '../../common/errors';
+import { BadRequestError, UnauthenticatedError } from '../../common/errors';
 import { UserService } from './user.service';
 
 interface AuthRequest extends Request {

@@ -26,14 +26,7 @@ import { UserModule } from '../user/user.module';
     ]),
   ],
   controllers: [IntegrationsController],
-  providers: [
-    IntegrationsService,
-    GoogleProvider,
-    FirebaseProvider,
-  ],
-  exports: [
-    IntegrationsService,
-    FirebaseProvider,
-  ],
+  providers: [IntegrationsService, GoogleProvider, FirebaseProvider],
+  exports: [IntegrationsService, FirebaseProvider],
 })
 export class IntegrationsModule {}

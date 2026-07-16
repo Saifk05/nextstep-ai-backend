@@ -126,10 +126,7 @@ export class AuthService {
         throw new UnauthenticatedError(MESSAGES.INVALID_CREDENTIALS);
       }
 
-      const isPasswordValid = await bcrypt.compare(
-        password,
-        user.passwordHash,
-      );
+      const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
       if (!isPasswordValid) {
         throw new UnauthenticatedError(MESSAGES.INVALID_CREDENTIALS);
@@ -154,107 +151,107 @@ export class AuthService {
   }
 
   async socialLogin(request: SocialLoginRequest) {
-  try {
-    const { provider, idToken } = request;
+    try {
+      const { provider, idToken } = request;
 
-    if (!provider || !idToken) {
-      throw new BadRequestError(MESSAGES.BAD_REQUEST);
-    }
+      if (!provider || !idToken) {
+        throw new BadRequestError(MESSAGES.BAD_REQUEST);
+      }
 
-    if (!['GOOGLE', 'FACEBOOK'].includes(provider)) {
-      throw new BadRequestError('Invalid social login provider');
-    }
+      if (!['GOOGLE', 'FACEBOOK'].includes(provider)) {
+        throw new BadRequestError('Invalid social login provider');
+      }
 
-    const decodedToken = await this.firebaseProvider.verifyIdToken(idToken);
+      const decodedToken = await this.firebaseProvider.verifyIdToken(idToken);
 
-    const email = decodedToken.email?.toLowerCase().trim();
+      const email = decodedToken.email?.toLowerCase().trim();
 
-    if (!email) {
-      throw new UnauthenticatedError('Email not found from social account');
-    }
+      if (!email) {
+        throw new UnauthenticatedError('Email not found from social account');
+      }
 
-    const providerId = decodedToken.uid;
+      const providerId = decodedToken.uid;
 
-    let user = await this.userService.findOne({
-      email,
-    });
-
-    if (!user) {
-      const displayName =
-        decodedToken.name ||
-        decodedToken.email?.split('@')[0] ||
-        'NextStep User';
-
-      const [firstName, ...lastNameParts] = displayName.split(' ');
-
-      user = await this.userService.createUser({
-        firstName: firstName || 'NextStep',
-        lastName: lastNameParts.join(' ') || 'User',
+      let user = await this.userService.findOne({
         email,
-        phoneNumber: decodedToken.phone_number || undefined,
-        ...(provider === 'GOOGLE'
-          ? { googleId: providerId }
-          : { facebookId: providerId }),
       });
 
-      if (decodedToken.picture) {
-        const updatedUser = await this.userService.updateUser(
-          user._id.toString(),
-          {
-            profilePicture: decodedToken.picture,
-          },
-        );
+      if (!user) {
+        const displayName =
+          decodedToken.name ||
+          decodedToken.email?.split('@')[0] ||
+          'NextStep User';
 
-        if (updatedUser) {
-          user = updatedUser;
+        const [firstName, ...lastNameParts] = displayName.split(' ');
+
+        user = await this.userService.createUser({
+          firstName: firstName || 'NextStep',
+          lastName: lastNameParts.join(' ') || 'User',
+          email,
+          phoneNumber: decodedToken.phone_number || undefined,
+          ...(provider === 'GOOGLE'
+            ? { googleId: providerId }
+            : { facebookId: providerId }),
+        });
+
+        if (decodedToken.picture) {
+          const updatedUser = await this.userService.updateUser(
+            user._id.toString(),
+            {
+              profilePicture: decodedToken.picture,
+            },
+          );
+
+          if (updatedUser) {
+            user = updatedUser;
+          }
+        }
+      } else {
+        const update: any = {};
+
+        if (provider === 'GOOGLE' && !user.googleId) {
+          update.googleId = providerId;
+        }
+
+        if (provider === 'FACEBOOK' && !user.facebookId) {
+          update.facebookId = providerId;
+        }
+
+        if (decodedToken.picture && !user.profilePicture) {
+          update.profilePicture = decodedToken.picture;
+        }
+
+        if (Object.keys(update).length) {
+          const updatedUser = await this.userService.updateUser(
+            user._id.toString(),
+            update,
+          );
+
+          if (updatedUser) {
+            user = updatedUser;
+          }
         }
       }
-    } else {
-      const update: any = {};
 
-      if (provider === 'GOOGLE' && !user.googleId) {
-        update.googleId = providerId;
+      return this.issueTokens(user);
+    } catch (error) {
+      this.logger.error(
+        `Social login failed for provider: ${request?.provider || 'unknown'}`,
+        error instanceof Error ? error.stack : JSON.stringify(error),
+      );
+
+      console.error('Social login actual error:', error);
+
+      if (
+        error instanceof BadRequestError ||
+        error instanceof UnauthenticatedError
+      ) {
+        throw error;
       }
 
-      if (provider === 'FACEBOOK' && !user.facebookId) {
-        update.facebookId = providerId;
-      }
-
-      if (decodedToken.picture && !user.profilePicture) {
-        update.profilePicture = decodedToken.picture;
-      }
-
-      if (Object.keys(update).length) {
-        const updatedUser = await this.userService.updateUser(
-          user._id.toString(),
-          update,
-        );
-
-        if (updatedUser) {
-          user = updatedUser;
-        }
-      }
+      throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
     }
-
-    return this.issueTokens(user);
-  } catch (error) {
-    this.logger.error(
-      `Social login failed for provider: ${request?.provider || 'unknown'}`,
-      error instanceof Error ? error.stack : JSON.stringify(error),
-    );
-
-    console.error('Social login actual error:', error);
-
-    if (
-      error instanceof BadRequestError ||
-      error instanceof UnauthenticatedError
-    ) {
-      throw error;
-    }
-
-    throw new InternalServerError(MESSAGES.INTERNAL_SERVER_ERROR);
   }
-}
 
   async logout(request: LogoutRequest) {
     try {
@@ -351,16 +348,13 @@ export class AuthService {
       expiresIn: jwtConfig().jwtRefreshExpiresIn as any,
     });
 
-    const updatedUser = await this.userService.updateUser(
-      user._id.toString(),
-      {
-        accessToken,
-        refreshToken,
-        status: UserStatus.ONLINE,
-        lastLoginAt: new Date(),
-        failedAttempts: 0,
-      },
-    );
+    const updatedUser = await this.userService.updateUser(user._id.toString(), {
+      accessToken,
+      refreshToken,
+      status: UserStatus.ONLINE,
+      lastLoginAt: new Date(),
+      failedAttempts: 0,
+    });
 
     return {
       message: MESSAGES.LOGIN_SUCCESSFUL,

@@ -114,7 +114,8 @@ export const SKILL_DEVELOPMENT_TEMPLATE = {
         'Implement one small feature in the selected project without copying generated code.',
       frequency: GoalActionFrequency.DAILY,
       priority: GoalActionPriority.HIGH,
-      successCriteria: 'One project feature or meaningful coding step is completed.',
+      successCriteria:
+        'One project feature or meaningful coding step is completed.',
       actionType: 'PROJECT',
       metadata: {
         defaultDailyTarget: 1,
@@ -179,8 +180,7 @@ export const SKILL_DEVELOPMENT_TEMPLATE = {
     {
       key: 'DATABASE_CONNECTED',
       title: 'Database connected',
-      description:
-        'The project stores and retrieves data using a database.',
+      description: 'The project stores and retrieves data using a database.',
       weight: 20,
     },
     {

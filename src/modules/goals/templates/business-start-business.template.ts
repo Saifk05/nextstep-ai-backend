@@ -186,8 +186,7 @@ export const START_BUSINESS_TEMPLATE = {
     {
       key: 'FIRST_CUSTOMER_ACQUIRED',
       title: 'First customer acquired',
-      description:
-        'The business receives its first customer or paying user.',
+      description: 'The business receives its first customer or paying user.',
       weight: 20,
     },
     {

@@ -102,13 +102,14 @@ export class GoalTaskSchedulerService {
         let createdCount = 0;
 
         for (const action of actions) {
-          const task = await this.taskService.createRecurringGoalTaskIfNotExists({
-            userId: goal.userId.toString(),
-            goalId: goal._id.toString(),
-            goalPlanId: plan._id.toString(),
-            action,
-            taskDate,
-          });
+          const task =
+            await this.taskService.createRecurringGoalTaskIfNotExists({
+              userId: goal.userId.toString(),
+              goalId: goal._id.toString(),
+              goalPlanId: plan._id.toString(),
+              action,
+              taskDate,
+            });
 
           if (task?.createdAt?.getTime?.() === task?.updatedAt?.getTime?.()) {
             createdCount++;
@@ -116,46 +117,46 @@ export class GoalTaskSchedulerService {
         }
 
         if (createdCount > 0) {
-        try {
+          try {
             await this.notificationsService.createNotification({
-            userId: goal.userId as Types.ObjectId,
-            title:
+              userId: goal.userId,
+              title:
                 frequency === 'DAILY'
-                ? 'Today’s Goal Tasks Ready'
-                : 'This Week’s Goal Tasks Ready',
-            message: `${createdCount} ${frequency.toLowerCase()} task(s) created for ${goal.title}`,
-            source: 'TASK',
-            priority: 'MEDIUM',
-            uniqueKey: `${goal.userId}_${goal._id}_${frequency}_${taskDate.toISOString()}`,
-            metadata: {
+                  ? 'Today’s Goal Tasks Ready'
+                  : 'This Week’s Goal Tasks Ready',
+              message: `${createdCount} ${frequency.toLowerCase()} task(s) created for ${goal.title}`,
+              source: 'TASK',
+              priority: 'MEDIUM',
+              uniqueKey: `${goal.userId}_${goal._id}_${frequency}_${taskDate.toISOString()}`,
+              metadata: {
                 goalId: goal._id.toString(),
                 frequency,
                 taskDate,
                 createdCount,
-            },
-            isPersistent: true,
-            isRead: false,
+              },
+              isPersistent: true,
+              isRead: false,
             });
-        } catch (error) {
+          } catch (error) {
             if (error?.code === 11000) {
-            this.logger.log(
+              this.logger.log(
                 `Duplicate goal notification skipped for goal ${goal._id} ${frequency}`,
-            );
+              );
             } else {
-            throw error;
+              throw error;
             }
-        }
+          }
         }
       } catch (error) {
         this.logger.error(
-        `Failed to generate ${frequency} tasks for goal ${goal._id}`,
+          `Failed to generate ${frequency} tasks for goal ${goal._id}`,
         );
 
         this.logger.error({
-        message: error?.message,
-        code: error?.code,
-        keyPattern: error?.keyPattern,
-        keyValue: error?.keyValue,
+          message: error?.message,
+          code: error?.code,
+          keyPattern: error?.keyPattern,
+          keyValue: error?.keyValue,
         });
       }
     }
@@ -167,14 +168,10 @@ export class GoalTaskSchedulerService {
     return date;
   }
 
-    private getStartOfWeek() {
+  private getStartOfWeek() {
     const now = new Date();
 
-    const date = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate(),
-    );
+    const date = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     const day = date.getDay();
     const diff = day === 0 ? -6 : 1 - day;
@@ -182,5 +179,5 @@ export class GoalTaskSchedulerService {
     date.setDate(date.getDate() + diff);
 
     return date;
-    }  
+  }
 }

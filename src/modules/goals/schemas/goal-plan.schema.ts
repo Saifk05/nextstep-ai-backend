@@ -3,10 +3,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 
-import {
-  GoalActionFrequency,
-  GoalActionPriority,
-} from '../enums/goals.enum';
+import { GoalActionFrequency, GoalActionPriority } from '../enums/goals.enum';
 
 export type GoalPlanDocument = HydratedDocument<GoalPlan>;
 

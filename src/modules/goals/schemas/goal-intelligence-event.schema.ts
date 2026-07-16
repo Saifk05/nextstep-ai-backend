@@ -58,8 +58,9 @@ export class GoalIntelligenceEvent {
   metadata?: Record<string, any>;
 }
 
-export const GoalIntelligenceEventSchema =
-  SchemaFactory.createForClass(GoalIntelligenceEvent);
+export const GoalIntelligenceEventSchema = SchemaFactory.createForClass(
+  GoalIntelligenceEvent,
+);
 
 GoalIntelligenceEventSchema.index({
   userId: 1,

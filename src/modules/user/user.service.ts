@@ -48,10 +48,7 @@ export class UserService {
     return this.userModel.findById(userId).exec();
   }
 
-  async updateUser(
-    userId: string,
-    update: any,
-  ): Promise<UserDocument | null> {
+  async updateUser(userId: string, update: any): Promise<UserDocument | null> {
     return this.userModel
       .findByIdAndUpdate(userId, update, {
         returnDocument: 'after',
@@ -59,10 +56,7 @@ export class UserService {
       .exec();
   }
 
-  async updateOne(
-    filter: any,
-    update: any,
-  ): Promise<UserDocument | null> {
+  async updateOne(filter: any, update: any): Promise<UserDocument | null> {
     return this.userModel
       .findOneAndUpdate(filter, update, {
         returnDocument: 'after',
@@ -70,10 +64,7 @@ export class UserService {
       .exec();
   }
 
-  async updateById(
-    userId: string,
-    update: any,
-  ): Promise<UserDocument | null> {
+  async updateById(userId: string, update: any): Promise<UserDocument | null> {
     return this.userModel
       .findByIdAndUpdate(userId, update, {
         returnDocument: 'after',
@@ -146,9 +137,7 @@ export class UserService {
 
   async getAddressSuggestions(query: string) {
     if (!query || query.trim().length < 3) {
-      throw new BadRequestError(
-        'Search query must be at least 3 characters',
-      );
+      throw new BadRequestError('Search query must be at least 3 characters');
     }
 
     const apiKey = process.env.OLAMAPS_KEY;
@@ -162,7 +151,7 @@ export class UserService {
     //   query.trim(),
     // )}&api_key=${apiKey}`;
     const url = `${baseUrl}/places/v1/autocomplete?input=${encodeURIComponent(
-    query.trim(),
+      query.trim(),
     )}&api_key=${apiKey}`;
     // const response = await fetch(url);
 
@@ -183,7 +172,7 @@ export class UserService {
     console.log('OLA MAPS RESPONSE:', JSON.stringify(result));
 
     if (!response.ok) {
-    throw new BadRequestError('Unable to fetch address suggestions');
+      throw new BadRequestError('Unable to fetch address suggestions');
     }
 
     const predictions = result?.predictions || [];
@@ -191,51 +180,49 @@ export class UserService {
     return predictions.map((item: any) => ({
       placeId: item.place_id,
       description: item.description,
-      mainText:
-        item.structured_formatting?.main_text || item.description,
-      secondaryText:
-        item.structured_formatting?.secondary_text || '',
+      mainText: item.structured_formatting?.main_text || item.description,
+      secondaryText: item.structured_formatting?.secondary_text || '',
     }));
   }
 
   async updateAddress(userId: string, address: any) {
-  if (!address?.placeId || !address?.description) {
-    throw new BadRequestError('Invalid address selected');
+    if (!address?.placeId || !address?.description) {
+      throw new BadRequestError('Invalid address selected');
+    }
+
+    const user = await this.updateById(userId, {
+      address: {
+        placeId: address.placeId,
+        description: address.description,
+        mainText: address.mainText || address.description,
+        secondaryText: address.secondaryText || '',
+      },
+    });
+
+    if (!user) {
+      return null;
+    }
+
+    return this.toProfileResponse(user);
   }
 
-  const user = await this.updateById(userId, {
-    address: {
-      placeId: address.placeId,
-      description: address.description,
-      mainText: address.mainText || address.description,
-      secondaryText: address.secondaryText || '',
-    },
-  });
+  async updateProfilePicture(userId: string, file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('Profile picture file is required');
+    }
 
-  if (!user) {
-    return null;
+    const user = await this.userModel.findById(userId);
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const uploadedImage = await this.cloudinaryService.uploadProfileImage(file);
+
+    user.profilePicture = uploadedImage.secure_url;
+
+    await user.save();
+
+    return this.toProfileResponse(user);
   }
-
-  return this.toProfileResponse(user);
-}
-
-    async updateProfilePicture(userId: string, file: Express.Multer.File) {
-  if (!file) {
-    throw new BadRequestException('Profile picture file is required');
-  }
-
-  const user = await this.userModel.findById(userId);
-
-  if (!user) {
-    throw new NotFoundException('User not found');
-  }
-
-  const uploadedImage = await this.cloudinaryService.uploadProfileImage(file);
-
-  user.profilePicture = uploadedImage.secure_url;
-
-  await user.save();
-
-  return this.toProfileResponse(user);
-}
 }

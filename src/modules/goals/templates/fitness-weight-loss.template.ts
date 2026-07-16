@@ -65,14 +65,7 @@ export const WEIGHT_LOSS_TEMPLATE = {
       label: 'What type of workout do you prefer?',
       type: 'select',
       required: true,
-      options: [
-        'WALKING',
-        'HOME_WORKOUT',
-        'GYM',
-        'YOGA',
-        'RUNNING',
-        'MIXED',
-      ],
+      options: ['WALKING', 'HOME_WORKOUT', 'GYM', 'YOGA', 'RUNNING', 'MIXED'],
     },
     {
       key: 'dietPreference',
@@ -179,7 +172,8 @@ export const WEIGHT_LOSS_TEMPLATE = {
     {
       key: 'FIRST_WEIGHT_LOSS_RECORDED',
       title: 'First weight loss recorded',
-      description: 'A measurable reduction from the starting weight is recorded.',
+      description:
+        'A measurable reduction from the starting weight is recorded.',
       weight: 20,
     },
     {

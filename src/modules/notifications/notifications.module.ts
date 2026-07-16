@@ -1,10 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
-import {
-  Notification,
-  NotificationSchema,
-} from './notification.schema';
+import { Notification, NotificationSchema } from './notification.schema';
 
 import {
   NotificationDevice,

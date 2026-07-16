@@ -49,14 +49,10 @@ export class GoalsGmailService {
       );
     }
 
-    const targetRole = goal.setupAnswers?.targetRole
-      ?.toLowerCase()
-      ?.trim();
+    const targetRole = goal.setupAnswers?.targetRole?.toLowerCase()?.trim();
 
     if (!targetRole) {
-      throw new BadRequestException(
-        'Target role not configured for this goal',
-      );
+      throw new BadRequestException('Target role not configured for this goal');
     }
 
     const goalCreatedAt = new Date((goal as any).createdAt);
@@ -69,8 +65,7 @@ export class GoalsGmailService {
      */
     const syncFrom = goal.lastIntelligenceSyncAt
       ? new Date(
-          new Date(goal.lastIntelligenceSyncAt).getTime() -
-            5 * 60 * 1000,
+          new Date(goal.lastIntelligenceSyncAt).getTime() - 5 * 60 * 1000,
         )
       : goalCreatedAt;
 
@@ -90,9 +85,7 @@ export class GoalsGmailService {
 
     const relevantEmails = emails.filter((email) => {
       const isJobEmail =
-        this.goalGmailIntelligenceService.isPotentialJobSearchEmail(
-          email,
-        );
+        this.goalGmailIntelligenceService.isPotentialJobSearchEmail(email);
 
       const content = `
         ${email.from || ''}
@@ -104,12 +97,9 @@ export class GoalsGmailService {
 
       const matchesRole = content.includes(targetRole);
 
-      const emailDate = email.receivedAt
-        ? new Date(email.receivedAt)
-        : null;
+      const emailDate = email.receivedAt ? new Date(email.receivedAt) : null;
 
-      const isAfterSyncStart =
-        !emailDate || emailDate >= syncFrom;
+      const isAfterSyncStart = !emailDate || emailDate >= syncFrom;
 
       return isAfterSyncStart && (isJobEmail || matchesRole);
     });
@@ -119,29 +109,25 @@ export class GoalsGmailService {
      * This allows the cold-email record to be created before its
      * corresponding bounce is processed.
      */
-    const processingEmails = [...relevantEmails].sort(
-      (first, second) => {
-        const firstIsSent =
-          first.labelIds?.includes('SENT') || false;
+    const processingEmails = [...relevantEmails].sort((first, second) => {
+      const firstIsSent = first.labelIds?.includes('SENT') || false;
 
-        const secondIsSent =
-          second.labelIds?.includes('SENT') || false;
+      const secondIsSent = second.labelIds?.includes('SENT') || false;
 
-        if (firstIsSent !== secondIsSent) {
-          return firstIsSent ? -1 : 1;
-        }
+      if (firstIsSent !== secondIsSent) {
+        return firstIsSent ? -1 : 1;
+      }
 
-        const firstTime = first.receivedAt
-          ? new Date(first.receivedAt).getTime()
-          : 0;
+      const firstTime = first.receivedAt
+        ? new Date(first.receivedAt).getTime()
+        : 0;
 
-        const secondTime = second.receivedAt
-          ? new Date(second.receivedAt).getTime()
-          : 0;
+      const secondTime = second.receivedAt
+        ? new Date(second.receivedAt).getTime()
+        : 0;
 
-        return firstTime - secondTime;
-      },
-    );
+      return firstTime - secondTime;
+    });
 
     const results: any[] = [];
 
@@ -195,72 +181,37 @@ export class GoalsGmailService {
       };
 
       const bounceResult =
-        await this.goalGmailIntelligenceService.detectBounceEmail(
-          payload,
-        );
+        await this.goalGmailIntelligenceService.detectBounceEmail(payload);
 
-      if (
-        registerResult(
-          bounceResult,
-          () => detectedBounces++,
-        )
-      ) {
+      if (registerResult(bounceResult, () => detectedBounces++)) {
         continue;
       }
 
       const coldEmailResult =
-        await this.goalGmailIntelligenceService.detectColdEmail(
-          payload,
-        );
+        await this.goalGmailIntelligenceService.detectColdEmail(payload);
 
-      if (
-        registerResult(
-          coldEmailResult,
-          () => detectedColdEmails++,
-        )
-      ) {
+      if (registerResult(coldEmailResult, () => detectedColdEmails++)) {
         continue;
       }
 
       const offerResult =
-        await this.goalGmailIntelligenceService.detectOfferEmail(
-          payload,
-        );
+        await this.goalGmailIntelligenceService.detectOfferEmail(payload);
 
-      if (
-        registerResult(
-          offerResult,
-          () => detectedOffers++,
-        )
-      ) {
+      if (registerResult(offerResult, () => detectedOffers++)) {
         continue;
       }
 
       const rejectionResult =
-        await this.goalGmailIntelligenceService.detectRejectionEmail(
-          payload,
-        );
+        await this.goalGmailIntelligenceService.detectRejectionEmail(payload);
 
-      if (
-        registerResult(
-          rejectionResult,
-          () => detectedRejections++,
-        )
-      ) {
+      if (registerResult(rejectionResult, () => detectedRejections++)) {
         continue;
       }
 
       const interviewResult =
-        await this.goalGmailIntelligenceService.detectInterviewEmail(
-          payload,
-        );
+        await this.goalGmailIntelligenceService.detectInterviewEmail(payload);
 
-      if (
-        registerResult(
-          interviewResult,
-          () => detectedInterviews++,
-        )
-      ) {
+      if (registerResult(interviewResult, () => detectedInterviews++)) {
         continue;
       }
 
@@ -269,36 +220,23 @@ export class GoalsGmailService {
           payload,
         );
 
-      if (
-        registerResult(
-          replyResult,
-          () => detectedReplies++,
-        )
-      ) {
+      if (registerResult(replyResult, () => detectedReplies++)) {
         continue;
       }
 
       const applicationResult =
-        await this.goalGmailIntelligenceService.detectApplicationEmail(
-          payload,
-        );
+        await this.goalGmailIntelligenceService.detectApplicationEmail(payload);
 
-      registerResult(
-        applicationResult,
-        () => detectedApplications++,
-      );
+      registerResult(applicationResult, () => detectedApplications++);
     }
 
-      goal.lastIntelligenceSyncAt = new Date();
-      await goal.save();
+    goal.lastIntelligenceSyncAt = new Date();
+    await goal.save();
 
-      const autoCompletedTasks =
-        await this.goalsService.syncAutomaticDailyTaskCompletion(
-          userId,
-          goalId,
-        );
+    const autoCompletedTasks =
+      await this.goalsService.syncAutomaticDailyTaskCompletion(userId, goalId);
 
-      return {
+    return {
       message: 'Gmail intelligence sync completed',
       goalId,
       goalType: goal.goalType,

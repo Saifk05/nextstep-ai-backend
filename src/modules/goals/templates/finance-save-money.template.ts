@@ -99,7 +99,8 @@ export const SAVE_MONEY_TEMPLATE = {
         'Check whether today’s expenses were necessary and within the planned limit.',
       frequency: GoalActionFrequency.DAILY,
       priority: GoalActionPriority.MEDIUM,
-      successCriteria: 'Daily spending is reviewed and unnecessary costs are identified.',
+      successCriteria:
+        'Daily spending is reviewed and unnecessary costs are identified.',
       actionType: 'SPENDING_REVIEW',
     },
     {

@@ -27,10 +27,7 @@ export class IntegrationsController {
   }
 
   @Post('google/connect/verify-otp')
-  verifyGoogleConnectOtp(
-    @Req() req: Request,
-    @Body('otp') otp: string,
-  ) {
+  verifyGoogleConnectOtp(@Req() req: Request, @Body('otp') otp: string) {
     const userId = this.getUserIdFromRequest(req);
 
     return this.integrationsService.verifyGoogleConnectOtp(userId, otp);
@@ -75,23 +72,14 @@ export class IntegrationsController {
   }
 
   @Patch('google/accounts/:id/default')
-  setDefaultGoogleAccount(
-    @Req() req: Request,
-    @Param('id') accountId: string,
-  ) {
+  setDefaultGoogleAccount(@Req() req: Request, @Param('id') accountId: string) {
     const userId = this.getUserIdFromRequest(req);
 
-    return this.integrationsService.setDefaultGoogleAccount(
-      userId,
-      accountId,
-    );
+    return this.integrationsService.setDefaultGoogleAccount(userId, accountId);
   }
 
   @Delete('google/accounts/:id')
-  deleteGoogleAccount(
-    @Req() req: Request,
-    @Param('id') accountId: string,
-  ) {
+  deleteGoogleAccount(@Req() req: Request, @Param('id') accountId: string) {
     const userId = this.getUserIdFromRequest(req);
 
     return this.integrationsService.deleteGoogleAccount(userId, accountId);
@@ -112,25 +100,25 @@ export class IntegrationsController {
   // }
 
   @Get('google/calendar/events')
-getGoogleCalendarEvents(
-  @Req() req: Request,
-  @Query('accountId') accountId?: string,
-  @Query('range') range?: string,
-  @Query('search') search?: string,
-  @Query('pageToken') pageToken?: string,
-  @Query('limit') limit?: string,
-) {
-  const userId = this.getUserIdFromRequest(req);
+  getGoogleCalendarEvents(
+    @Req() req: Request,
+    @Query('accountId') accountId?: string,
+    @Query('range') range?: string,
+    @Query('search') search?: string,
+    @Query('pageToken') pageToken?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const userId = this.getUserIdFromRequest(req);
 
-  return this.integrationsService.getGoogleCalendarEvents(
-    userId,
-    accountId,
-    range,
-    search,
-    pageToken,
-    limit,
-  );
-}
+    return this.integrationsService.getGoogleCalendarEvents(
+      userId,
+      accountId,
+      range,
+      search,
+      pageToken,
+      limit,
+    );
+  }
 
   @Get('google/gmail/status')
   getGoogleGmailStatus(@Req() req: Request) {
@@ -139,29 +127,28 @@ getGoogleCalendarEvents(
     return this.integrationsService.getGoogleGmailStatus(userId);
   }
 
+  @Get('google/gmail/messages')
+  getGoogleGmailMessages(
+    @Req() req: Request,
+    @Query('accountId') accountId?: string,
+    @Query('pageToken') pageToken?: string,
+    @Query('limit') limit?: string,
+    @Query('search') search?: string,
+    @Query('category') category?: string,
+    @Query('days') days?: string,
+  ) {
+    const userId = this.getUserIdFromRequest(req);
 
-@Get('google/gmail/messages')
-getGoogleGmailMessages(
-  @Req() req: Request,
-  @Query('accountId') accountId?: string,
-  @Query('pageToken') pageToken?: string,
-  @Query('limit') limit?: string,
-  @Query('search') search?: string,
-  @Query('category') category?: string,
-  @Query('days') days?: string,
-) {
-  const userId = this.getUserIdFromRequest(req);
-
-  return this.integrationsService.getGoogleGmailMessages(
-    userId,
-    accountId,
-    pageToken,
-    limit,
-    search,
-    category,
-    days,
-  );
-}
+    return this.integrationsService.getGoogleGmailMessages(
+      userId,
+      accountId,
+      pageToken,
+      limit,
+      search,
+      category,
+      days,
+    );
+  }
 
   @Get('google/gmail/unread')
   getGoogleUnreadMessages(@Req() req: Request) {

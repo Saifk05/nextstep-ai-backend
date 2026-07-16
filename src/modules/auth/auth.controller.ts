@@ -30,13 +30,8 @@ export class AuthController {
   }
 
   @Post('social-login')
-  async socialLogin(
-    @Req() req: Request,
-    @Res() res: Response,
-  ) {
-    const result = await this.authService.socialLogin(
-      req.body,
-    );
+  async socialLogin(@Req() req: Request, @Res() res: Response) {
+    const result = await this.authService.socialLogin(req.body);
 
     return res.status(200).json({
       success: true,
@@ -61,9 +56,9 @@ export class AuthController {
     const result = await this.authService.refreshToken(req.body);
 
     return res.status(200).json({
-        success: true,
-        message: result.message,
-        data: result.data,
+      success: true,
+      message: result.message,
+      data: result.data,
     });
   }
 }

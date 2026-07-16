@@ -39,41 +39,30 @@ export class MailService {
 
   private readonly transporter: nodemailer.Transporter;
 
-  constructor(
-    private readonly configService: ConfigService,
-  ) {
+  constructor(private readonly configService: ConfigService) {
     const host =
-      this.configService.get<string>('EMAIL_HOST') ||
-      'smtp.gmail.com';
+      this.configService.get<string>('EMAIL_HOST') || 'smtp.gmail.com';
 
-    const port = Number(
-      this.configService.get<string>('EMAIL_PORT') ||
-        587,
-    );
+    const port = Number(this.configService.get<string>('EMAIL_PORT') || 587);
 
-    const user =
-      this.configService.get<string>('EMAIL_USER');
+    const user = this.configService.get<string>('EMAIL_USER');
 
-    const pass =
-      this.configService.get<string>('EMAIL_PASS');
+    const pass = this.configService.get<string>('EMAIL_PASS');
 
     if (!user || !pass) {
-      throw new BadRequestException(
-        'EMAIL_USER and EMAIL_PASS are required',
-      );
+      throw new BadRequestException('EMAIL_USER and EMAIL_PASS are required');
     }
 
-    this.transporter =
-      nodemailer.createTransport({
-        host,
-        port,
-        secure: port === 465,
+    this.transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: port === 465,
 
-        auth: {
-          user,
-          pass,
-        },
-      });
+      auth: {
+        user,
+        pass,
+      },
+    });
   }
 
   async sendGoogleConnectOtp(
@@ -88,8 +77,7 @@ export class MailService {
         from,
         to,
 
-        subject:
-          'Your NextStep AI verification code',
+        subject: 'Your NextStep AI verification code',
 
         text:
           `Hi ${firstName || 'there'}, ` +
@@ -108,9 +96,7 @@ export class MailService {
     } catch (error) {
       this.logger.error(
         `Unable to send Google connection OTP to ${to}`,
-        error instanceof Error
-          ? error.stack
-          : String(error),
+        error instanceof Error ? error.stack : String(error),
       );
 
       throw new InternalServerErrorException(
@@ -144,20 +130,15 @@ export class MailService {
 
       return {
         success: true,
-        message:
-          'Test email sent successfully',
+        message: 'Test email sent successfully',
       };
     } catch (error) {
       this.logger.error(
         `Unable to send test email to ${to}`,
-        error instanceof Error
-          ? error.stack
-          : String(error),
+        error instanceof Error ? error.stack : String(error),
       );
 
-      throw new InternalServerErrorException(
-        'Unable to send test email',
-      );
+      throw new InternalServerErrorException('Unable to send test email');
     }
   }
 
@@ -174,38 +155,28 @@ export class MailService {
 
     const from = this.getFromAddress();
 
-    const firstName =
-      params.firstName?.trim() || 'there';
+    const firstName = params.firstName?.trim() || 'there';
 
     const recruiterOrCompany =
-      params.recruiterName?.trim() ||
-      params.company?.trim() ||
-      'the recruiter';
+      params.recruiterName?.trim() || params.company?.trim() || 'the recruiter';
 
-    const role =
-      params.targetRole?.trim() ||
-      'your job opportunity';
+    const role = params.targetRole?.trim() || 'your job opportunity';
 
-    const formattedDueDate =
-      params.dueDate
-        ? params.dueDate.toLocaleDateString(
-            'en-IN',
-            {
-              timeZone: 'Asia/Kolkata',
-              day: '2-digit',
-              month: 'short',
-              year: 'numeric',
-            },
-          )
-        : null;
+    const formattedDueDate = params.dueDate
+      ? params.dueDate.toLocaleDateString('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        })
+      : null;
 
-    const emailContent =
-      this.getGoalReminderEmailContent({
-        type: params.type,
-        recruiterOrCompany,
-        role,
-        formattedDueDate,
-      });
+    const emailContent = this.getGoalReminderEmailContent({
+      type: params.type,
+      recruiterOrCompany,
+      role,
+      formattedDueDate,
+    });
 
     try {
       await this.transporter.sendMail({
@@ -238,9 +209,7 @@ export class MailService {
     } catch (error) {
       this.logger.error(
         `Unable to send goal reminder email to ${params.to}`,
-        error instanceof Error
-          ? error.stack
-          : String(error),
+        error instanceof Error ? error.stack : String(error),
       );
 
       /*
@@ -254,44 +223,29 @@ export class MailService {
     }
   }
 
-  private getGoalReminderEmailContent(
-    params: {
-      type: GoalReminderEmailType;
-      recruiterOrCompany: string;
-      role: string;
-      formattedDueDate: string | null;
-    },
-  ): GoalReminderEmailContent {
-    const {
-      type,
-      recruiterOrCompany,
-      role,
-      formattedDueDate,
-    } = params;
+  private getGoalReminderEmailContent(params: {
+    type: GoalReminderEmailType;
+    recruiterOrCompany: string;
+    role: string;
+    formattedDueDate: string | null;
+  }): GoalReminderEmailContent {
+    const { type, recruiterOrCompany, role, formattedDueDate } = params;
 
     switch (type) {
       case 'FOLLOW_UP_TOMORROW':
         return {
-          subject:
-            `Follow-up due tomorrow: ` +
-            recruiterOrCompany,
+          subject: `Follow-up due tomorrow: ` + recruiterOrCompany,
 
           message:
             `Your follow-up with ` +
             `${recruiterOrCompany} for ${role} ` +
             `is due tomorrow` +
-            `${
-              formattedDueDate
-                ? `, ${formattedDueDate}`
-                : ''
-            }.`,
+            `${formattedDueDate ? `, ${formattedDueDate}` : ''}.`,
         };
 
       case 'FOLLOW_UP_DUE':
         return {
-          subject:
-            `Follow-up due today: ` +
-            recruiterOrCompany,
+          subject: `Follow-up due today: ` + recruiterOrCompany,
 
           message:
             `You have not received a reply from ` +
@@ -301,8 +255,7 @@ export class MailService {
 
       case 'NO_RESPONSE':
         return {
-          subject:
-            `No response: ${recruiterOrCompany}`,
+          subject: `No response: ${recruiterOrCompany}`,
 
           message:
             `No response was detected from ` +
@@ -313,9 +266,7 @@ export class MailService {
 
       case 'APPLICATION_REJECTED':
         return {
-          subject:
-            `Application update: ` +
-            recruiterOrCompany,
+          subject: `Application update: ` + recruiterOrCompany,
 
           message:
             `A rejection email from ` +
@@ -325,23 +276,17 @@ export class MailService {
         };
 
       default:
-        throw new Error(
-          `Unsupported goal reminder email type: ${type}`,
-        );
+        throw new Error(`Unsupported goal reminder email type: ${type}`);
     }
   }
 
-  private buildGoalReminderHtml(
-    params: {
-      firstName: string;
-      message: string;
-    },
-  ): string {
-    const safeFirstName =
-      this.escapeHtml(params.firstName);
+  private buildGoalReminderHtml(params: {
+    firstName: string;
+    message: string;
+  }): string {
+    const safeFirstName = this.escapeHtml(params.firstName);
 
-    const safeMessage =
-      this.escapeHtml(params.message);
+    const safeMessage = this.escapeHtml(params.message);
 
     return `
       <!DOCTYPE html>
@@ -468,34 +413,22 @@ export class MailService {
 
   private getFromAddress(): string {
     return (
-      this.configService.get<string>(
-        'EMAIL_FROM',
-      ) ||
-      `NextStep AI <${
-        this.configService.get<string>(
-          'EMAIL_USER',
-        )
-      }>`
+      this.configService.get<string>('EMAIL_FROM') ||
+      `NextStep AI <${this.configService.get<string>('EMAIL_USER')}>`
     );
   }
 
-  private escapeHtml(
-    value: string,
-  ): string {
-    return value.replace(
-      /[&<>"']/g,
-      (character) => {
-        const entities:
-          Record<string, string> = {
-            '&': '&amp;',
-            '<': '&lt;',
-            '>': '&gt;',
-            '"': '&quot;',
-            "'": '&#039;',
-          };
+  private escapeHtml(value: string): string {
+    return value.replace(/[&<>"']/g, (character) => {
+      const entities: Record<string, string> = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;',
+      };
 
-        return entities[character] || character;
-      },
-    );
+      return entities[character] || character;
+    });
   }
 }

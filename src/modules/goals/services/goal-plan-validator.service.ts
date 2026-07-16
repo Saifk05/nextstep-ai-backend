@@ -1,9 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 
-import {
-  GoalActionFrequency,
-  GoalActionPriority,
-} from '../enums/goals.enum';
+import { GoalActionFrequency, GoalActionPriority } from '../enums/goals.enum';
 
 @Injectable()
 export class GoalPlanValidatorService {
@@ -17,7 +14,9 @@ export class GoalPlanValidatorService {
     }
 
     if (!Array.isArray(plan.milestones) || plan.milestones.length === 0) {
-      throw new BadRequestException('Goal plan must have at least one milestone');
+      throw new BadRequestException(
+        'Goal plan must have at least one milestone',
+      );
     }
 
     this.validateActions(plan.actions);
@@ -33,7 +32,9 @@ export class GoalPlanValidatorService {
       }
 
       if (!Object.values(GoalActionFrequency).includes(action.frequency)) {
-        throw new BadRequestException(`Invalid action frequency: ${action.key}`);
+        throw new BadRequestException(
+          `Invalid action frequency: ${action.key}`,
+        );
       }
 
       if (!Object.values(GoalActionPriority).includes(action.priority)) {
@@ -58,7 +59,9 @@ export class GoalPlanValidatorService {
       }
 
       if (milestone.weight < 0 || milestone.weight > 100) {
-        throw new BadRequestException(`Invalid milestone weight: ${milestone.key}`);
+        throw new BadRequestException(
+          `Invalid milestone weight: ${milestone.key}`,
+        );
       }
     }
   }

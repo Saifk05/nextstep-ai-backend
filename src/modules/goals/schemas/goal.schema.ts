@@ -1,15 +1,8 @@
 // src/modules/goals/schemas/goal.schema.ts
 
-import {
-  Prop,
-  Schema,
-  SchemaFactory,
-} from '@nestjs/mongoose';
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 
-import {
-  HydratedDocument,
-  Types,
-} from 'mongoose';
+import { HydratedDocument, Types } from 'mongoose';
 
 import {
   GoalCategory,
@@ -19,8 +12,7 @@ import {
   GoalType,
 } from '../enums/goals.enum';
 
-export type GoalDocument =
-  HydratedDocument<Goal>;
+export type GoalDocument = HydratedDocument<Goal>;
 
 @Schema({
   timestamps: true,
@@ -211,8 +203,7 @@ export class Goal {
   aiPlanSummary?: string;
 }
 
-export const GoalSchema =
-  SchemaFactory.createForClass(Goal);
+export const GoalSchema = SchemaFactory.createForClass(Goal);
 
 GoalSchema.index({
   userId: 1,

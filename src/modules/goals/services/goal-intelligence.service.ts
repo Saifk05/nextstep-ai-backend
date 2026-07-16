@@ -10,10 +10,7 @@ import {
   RecruiterStatus,
 } from '../enums/goals.enum';
 
-import {
-  Recruiter,
-  RecruiterDocument,
-} from '../schemas/recruiter.schema';
+import { Recruiter, RecruiterDocument } from '../schemas/recruiter.schema';
 
 import { Goal, GoalDocument } from '../schemas/goal.schema';
 import {
@@ -66,8 +63,6 @@ export class GoalIntelligenceService {
     private readonly recruiterModel: Model<RecruiterDocument>,
   ) {}
 
-
-  
   async createApplicationDetectedEvent(params: IntelligenceParams) {
     const existingEvent = await this.findDuplicateEvent(
       params,
@@ -75,7 +70,10 @@ export class GoalIntelligenceService {
     );
 
     if (existingEvent) {
-      return this.duplicateResponse(existingEvent, ActivityType.APPLICATION_DETECTED);
+      return this.duplicateResponse(
+        existingEvent,
+        ActivityType.APPLICATION_DETECTED,
+      );
     }
 
     const now = new Date();
@@ -100,7 +98,7 @@ export class GoalIntelligenceService {
     const event = await this.createEvent(
       params,
       GoalIntelligenceEventType.APPLICATION_DETECTED,
-      application._id as Types.ObjectId,
+      application._id,
     );
 
     await this.goalModel.updateOne(
@@ -110,13 +108,12 @@ export class GoalIntelligenceService {
 
     await this.updateGoalProgress(params.goalId);
 
-
     await this.createActivity(
       params,
       ActivityType.APPLICATION_DETECTED,
       `Applied to ${params.company}`,
-      event._id as Types.ObjectId,
-      application._id as Types.ObjectId,
+      event._id,
+      application._id,
     );
 
     return {
@@ -138,108 +135,101 @@ export class GoalIntelligenceService {
     });
   }
 
-async createColdEmailDetectedEvent(
-  params: IntelligenceParams,
-) {
-  const recruiter =
-    await this.upsertRecruiterFromColdEmail(params);
+  async createColdEmailDetectedEvent(params: IntelligenceParams) {
+    const recruiter = await this.upsertRecruiterFromColdEmail(params);
 
-  const existingEvent = await this.findDuplicateEvent(
-    params,
-    GoalIntelligenceEventType.COLD_EMAIL_DETECTED,
-  );
+    const existingEvent = await this.findDuplicateEvent(
+      params,
+      GoalIntelligenceEventType.COLD_EMAIL_DETECTED,
+    );
 
-  if (existingEvent) {
-    const duplicate = await this.duplicateResponse(
-      existingEvent,
+    if (existingEvent) {
+      const duplicate = await this.duplicateResponse(
+        existingEvent,
+        ActivityType.COLD_EMAIL_DETECTED,
+      );
+
+      return {
+        ...duplicate,
+        recruiter,
+      };
+    }
+
+    const event = await this.createEvent(
+      params,
+      GoalIntelligenceEventType.COLD_EMAIL_DETECTED,
+    );
+
+    await this.goalModel.updateOne(
+      {
+        _id: params.goalId,
+        userId: params.userId,
+      },
+      {
+        $inc: {
+          'metrics.emailsSent': 1,
+        },
+      },
+    );
+
+    await this.updateGoalProgress(params.goalId);
+
+    await this.createActivity(
+      params,
       ActivityType.COLD_EMAIL_DETECTED,
+      `Cold email sent to ${params.company}`,
+      event._id,
+      undefined,
+      recruiter?._id,
     );
 
     return {
-      ...duplicate,
       recruiter,
+      event,
+      activityType: ActivityType.COLD_EMAIL_DETECTED,
+      duplicate: false,
     };
   }
 
-  const event = await this.createEvent(
-    params,
-    GoalIntelligenceEventType.COLD_EMAIL_DETECTED,
-  );
-
-  await this.goalModel.updateOne(
-    {
-      _id: params.goalId,
-      userId: params.userId,
-    },
-    {
-      $inc: {
-        'metrics.emailsSent': 1,
-      },
-    },
-  );
-
-  await this.updateGoalProgress(params.goalId);
-
-  await this.createActivity(
-    params,
-    ActivityType.COLD_EMAIL_DETECTED,
-    `Cold email sent to ${params.company}`,
-    event._id as Types.ObjectId,
-    undefined,
-    recruiter?._id as Types.ObjectId | undefined,
-  );
-
-  return {
-    recruiter,
-    event,
-    activityType:
-      ActivityType.COLD_EMAIL_DETECTED,
-    duplicate: false,
-  };
-}
-
-async createEmailBouncedEvent(params: IntelligenceParams) {
-  const existingEvent = await this.findDuplicateEvent(
-    params,
-    GoalIntelligenceEventType.EMAIL_BOUNCED,
-  );
-
-  if (existingEvent) {
-    return this.duplicateResponse(
-      existingEvent,
-      ActivityType.EMAIL_BOUNCED,
+  async createEmailBouncedEvent(params: IntelligenceParams) {
+    const existingEvent = await this.findDuplicateEvent(
+      params,
+      GoalIntelligenceEventType.EMAIL_BOUNCED,
     );
-  }
 
-  const event = await this.createEvent(
-    params,
-    GoalIntelligenceEventType.EMAIL_BOUNCED,
-  );
+    if (existingEvent) {
+      return this.duplicateResponse(existingEvent, ActivityType.EMAIL_BOUNCED);
+    }
 
-  await this.goalModel.updateOne(
-    { _id: params.goalId, userId: params.userId },
-    {
-      $inc: {
-        'metrics.bouncedEmails': 1,
+    const event = await this.createEvent(
+      params,
+      GoalIntelligenceEventType.EMAIL_BOUNCED,
+    );
+
+    await this.goalModel.updateOne(
+      { _id: params.goalId, userId: params.userId },
+      {
+        $inc: {
+          'metrics.bouncedEmails': 1,
+        },
       },
-    },
-  );
+    );
 
-  await this.updateGoalProgress(params.goalId);
+    await this.updateGoalProgress(params.goalId);
 
-  await this.createActivity(
-    params,
-    ActivityType.EMAIL_BOUNCED,
-    `Email bounced for ${params.company}`,
-    event._id as Types.ObjectId,
-  );
+    await this.createActivity(
+      params,
+      ActivityType.EMAIL_BOUNCED,
+      `Email bounced for ${params.company}`,
+      event._id,
+    );
 
-  return {
-    event,
-    activityType: ActivityType.EMAIL_BOUNCED,
-    duplicate: false,
-  };
-}
+    return {
+      event,
+      activityType: ActivityType.EMAIL_BOUNCED,
+      duplicate: false,
+    };
+  }
 
   async createInterviewDetectedEvent(params: IntelligenceParams) {
     return this.createStatusEvent({
@@ -265,14 +255,14 @@ async createEmailBouncedEvent(params: IntelligenceParams) {
 
   async createNoResponseDetectedEvent(params: IntelligenceParams) {
     return this.createStatusEvent({
-        params,
-        eventType: GoalIntelligenceEventType.NO_RESPONSE_DETECTED,
-        activityType: ActivityType.NO_RESPONSE_DETECTED,
-        applicationStatus: ApplicationStatus.REJECTED,
-        metricKey: 'metrics.rejections',
-        message: `No response received after 30 days from ${params.company}`,
+      params,
+      eventType: GoalIntelligenceEventType.NO_RESPONSE_DETECTED,
+      activityType: ActivityType.NO_RESPONSE_DETECTED,
+      applicationStatus: ApplicationStatus.REJECTED,
+      metricKey: 'metrics.rejections',
+      message: `No response received after 30 days from ${params.company}`,
     });
-    }
+  }
 
   async createRejectionDetectedEvent(params: IntelligenceParams) {
     return this.createStatusEvent({
@@ -295,7 +285,10 @@ async createEmailBouncedEvent(params: IntelligenceParams) {
   }) {
     const { params } = config;
 
-    const existingEvent = await this.findDuplicateEvent(params, config.eventType);
+    const existingEvent = await this.findDuplicateEvent(
+      params,
+      config.eventType,
+    );
 
     if (existingEvent) {
       return this.duplicateResponse(existingEvent, config.activityType);
@@ -304,21 +297,21 @@ async createEmailBouncedEvent(params: IntelligenceParams) {
     const application = await this.findOrCreateApplication(params);
 
     const updatedApplication =
-    await this.goalApplicationModel.findByIdAndUpdate(
+      await this.goalApplicationModel.findByIdAndUpdate(
         application._id,
         {
-        $set: {
+          $set: {
             status: config.applicationStatus,
             lastActivityAt: new Date(),
-        },
+          },
         },
         { new: true },
-    );
+      );
 
     const event = await this.createEvent(
       params,
       config.eventType,
-      application._id as Types.ObjectId,
+      application._id,
     );
 
     await this.goalModel.updateOne(
@@ -332,15 +325,15 @@ async createEmailBouncedEvent(params: IntelligenceParams) {
       params,
       config.activityType,
       config.message,
-      event._id as Types.ObjectId,
-      application._id as Types.ObjectId,
+      event._id,
+      application._id,
     );
 
     return {
-        application: updatedApplication,
-        event,
-        activityType: config.activityType,
-        duplicate: false,
+      application: updatedApplication,
+      event,
+      activityType: config.activityType,
+      duplicate: false,
     };
   }
 
@@ -369,7 +362,6 @@ async createEmailBouncedEvent(params: IntelligenceParams) {
         goalId: params.goalId,
         company: params.company,
         position: params.position ?? null,
-
       })
       .sort({ createdAt: -1 })
       .exec();
@@ -401,91 +393,74 @@ async createEmailBouncedEvent(params: IntelligenceParams) {
     });
   }
 
-  private async upsertRecruiterFromColdEmail(
-  params: IntelligenceParams,
-) {
-  const recruiterEmail =
-    params.recipientEmail
-      ?.trim()
-      .toLowerCase();
+  private async upsertRecruiterFromColdEmail(params: IntelligenceParams) {
+    const recruiterEmail = params.recipientEmail?.trim().toLowerCase();
 
-  if (!recruiterEmail) {
-    return null;
-  }
+    if (!recruiterEmail) {
+      return null;
+    }
 
-  const recruiterName =
-    this.getRecruiterNameFromEmail(
-      recruiterEmail,
-    );
+    const recruiterName = this.getRecruiterNameFromEmail(recruiterEmail);
 
-  const now = new Date();
+    const now = new Date();
 
-  const update: any = {
-    $set: {
-      userId: params.userId,
-      goalId: params.goalId,
-      company: params.company,
-      recruiterName,
-      recruiterEmail,
-      status: RecruiterStatus.EMAIL_SENT,
-      lastEmailSentAt: now,
-    },
+    const update: any = {
+      $set: {
+        userId: params.userId,
+        goalId: params.goalId,
+        company: params.company,
+        recruiterName,
+        recruiterEmail,
+        status: RecruiterStatus.EMAIL_SENT,
+        lastEmailSentAt: now,
+      },
 
-    $setOnInsert: {
-      firstEmailSentAt: now,
-    },
-  };
-
-  if (params.position) {
-    update.$set.position = params.position;
-  }
-
-  if (params.sourceThreadId) {
-    update.$set.gmailThreadId =
-      params.sourceThreadId;
-  }
-
-  if (params.sourceMessageId) {
-    update.$addToSet = {
-      gmailMessageIds:
-        params.sourceMessageId,
+      $setOnInsert: {
+        firstEmailSentAt: now,
+      },
     };
+
+    if (params.position) {
+      update.$set.position = params.position;
+    }
+
+    if (params.sourceThreadId) {
+      update.$set.gmailThreadId = params.sourceThreadId;
+    }
+
+    if (params.sourceMessageId) {
+      update.$addToSet = {
+        gmailMessageIds: params.sourceMessageId,
+      };
+    }
+
+    return this.recruiterModel.findOneAndUpdate(
+      {
+        goalId: params.goalId,
+        recruiterEmail,
+      },
+      update,
+      {
+        new: true,
+        upsert: true,
+        runValidators: true,
+        setDefaultsOnInsert: true,
+      },
+    );
   }
 
-  return this.recruiterModel.findOneAndUpdate(
-    {
-      goalId: params.goalId,
-      recruiterEmail,
-    },
-    update,
-    {
-      new: true,
-      upsert: true,
-      runValidators: true,
-      setDefaultsOnInsert: true,
-    },
-  );
-}
+  private getRecruiterNameFromEmail(email: string): string {
+    const localPart = email.split('@')[0] || '';
 
-private getRecruiterNameFromEmail(
-  email: string,
-): string {
-  const localPart =
-    email.split('@')[0] || '';
+    const name = localPart
+      .replace(/[._-]+/g, ' ')
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join(' ');
 
-  const name = localPart
-    .replace(/[._-]+/g, ' ')
-    .split(/\s+/)
-    .filter(Boolean)
-    .map(
-      (part) =>
-        part.charAt(0).toUpperCase() +
-        part.slice(1).toLowerCase(),
-    )
-    .join(' ');
-
-  return name || 'Unknown Recruiter';
-}
+    return name || 'Unknown Recruiter';
+  }
 
   private async createEvent(
     params: IntelligenceParams,
@@ -511,62 +486,56 @@ private getRecruiterNameFromEmail(
     });
   }
 
-
   private async createActivity(
-  params: IntelligenceParams,
-  type: ActivityType,
-  message: string,
-  eventId: Types.ObjectId,
-  applicationId?: Types.ObjectId,
-  recruiterId?: Types.ObjectId,
-) {
-  return this.goalActivityModel.create({
-    userId: params.userId,
-    goalId: params.goalId,
+    params: IntelligenceParams,
+    type: ActivityType,
+    message: string,
+    eventId: Types.ObjectId,
+    applicationId?: Types.ObjectId,
+    recruiterId?: Types.ObjectId,
+  ) {
+    return this.goalActivityModel.create({
+      userId: params.userId,
+      goalId: params.goalId,
 
-    recruiterId: recruiterId ?? undefined,
+      recruiterId: recruiterId ?? undefined,
 
-    type,
-    message,
+      type,
+      message,
 
-    metadata: {
-      company: params.company,
-      position: params.position ?? null,
+      metadata: {
+        company: params.company,
+        position: params.position ?? null,
 
-      recipientEmail:
-        params.recipientEmail ?? null,
+        recipientEmail: params.recipientEmail ?? null,
 
-      recruiterId:
-        recruiterId?.toString() ?? null,
+        recruiterId: recruiterId?.toString() ?? null,
 
-      source: 'GMAIL',
+        source: 'GMAIL',
 
-      sourceMessageId:
-        params.sourceMessageId ?? null,
+        sourceMessageId: params.sourceMessageId ?? null,
 
-      sourceThreadId:
-        params.sourceThreadId ?? null,
+        sourceThreadId: params.sourceThreadId ?? null,
 
-      sourceEmailFrom:
-        params.sourceEmailFrom ?? null,
+        sourceEmailFrom: params.sourceEmailFrom ?? null,
 
-      sourceEmailSubject:
-        params.sourceEmailSubject ?? null,
+        sourceEmailSubject: params.sourceEmailSubject ?? null,
 
-      eventId: eventId.toString(),
+        eventId: eventId.toString(),
 
-      applicationId:
-        applicationId?.toString() ?? null,
-    },
-  });
-}
+        applicationId: applicationId?.toString() ?? null,
+      },
+    });
+  }
 
   private async duplicateResponse(
     existingEvent: GoalIntelligenceEventDocument,
     activityType: ActivityType,
   ) {
     const existingApplication = existingEvent.applicationId
-      ? await this.goalApplicationModel.findById(existingEvent.applicationId).exec()
+      ? await this.goalApplicationModel
+          .findById(existingEvent.applicationId)
+          .exec()
       : null;
 
     return {
@@ -578,36 +547,35 @@ private getRecruiterNameFromEmail(
   }
 
   private async updateGoalProgress(goalId: Types.ObjectId) {
-  const goal = await this.goalModel.findById(goalId);
+    const goal = await this.goalModel.findById(goalId);
 
-  if (!goal) {
-    return;
-  }
+    if (!goal) {
+      return;
+    }
 
-  const metrics = goal.metrics ?? {
-    applicationsSubmitted: 0,
-    replies: 0,
-    interviews: 0,
-    offers: 0,
-  };
-  // const metrics = goal.metrics ?? {};
+    const metrics = goal.metrics ?? {
+      applicationsSubmitted: 0,
+      replies: 0,
+      interviews: 0,
+      offers: 0,
+    };
+    // const metrics = goal.metrics ?? {};
 
-  const progress = Math.min(
-    100,
-    (metrics.applicationsSubmitted || 0) * 1 +
-    (metrics.replies || 0) * 3 +
-    (metrics.interviews || 0) * 10 +
-    (metrics.offers || 0) * 50,
-  );
+    const progress = Math.min(
+      100,
+      (metrics.applicationsSubmitted || 0) * 1 +
+        (metrics.replies || 0) * 3 +
+        (metrics.interviews || 0) * 10 +
+        (metrics.offers || 0) * 50,
+    );
 
-  await this.goalModel.updateOne(
-    { _id: goalId },
-    {
-      $set: {
-        progressPercentage: progress,
+    await this.goalModel.updateOne(
+      { _id: goalId },
+      {
+        $set: {
+          progressPercentage: progress,
+        },
       },
-    },
-  );
-}
-  
+    );
+  }
 }

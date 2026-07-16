@@ -12,7 +12,6 @@ import * as crypto from 'crypto';
 import { google, gmail_v1 } from 'googleapis';
 import { UserService } from '../user/user.service';
 
-
 import {
   ConnectedAccount,
   ConnectedAccountDocument,
@@ -23,64 +22,59 @@ import {
 import { GoogleProvider } from './providers/google/google.provider';
 import { MailService } from '../../common/mail/mail.service';
 
-
 @Injectable()
 export class IntegrationsService {
-    private readonly GOOGLE_CALENDAR_SCOPE =
-      'https://www.googleapis.com/auth/calendar.readonly';
+  private readonly GOOGLE_CALENDAR_SCOPE =
+    'https://www.googleapis.com/auth/calendar.readonly';
 
-    private readonly GOOGLE_GMAIL_READONLY_SCOPE =
-      'https://www.googleapis.com/auth/gmail.readonly';
+  private readonly GOOGLE_GMAIL_READONLY_SCOPE =
+    'https://www.googleapis.com/auth/gmail.readonly';
 
-      constructor(
-        @InjectModel(ConnectedAccount.name)
-        private readonly connectedAccountModel: Model<ConnectedAccountDocument>,
-        private readonly configService: ConfigService,
-        private readonly googleProvider: GoogleProvider,
-        private readonly mailService: MailService,
-        private readonly userService: UserService,
-      ) {}
+  constructor(
+    @InjectModel(ConnectedAccount.name)
+    private readonly connectedAccountModel: Model<ConnectedAccountDocument>,
+    private readonly configService: ConfigService,
+    private readonly googleProvider: GoogleProvider,
+    private readonly mailService: MailService,
+    private readonly userService: UserService,
+  ) {}
 
-      generateGoogleAuthUrl(
-  userId: string,
-  accountType?: string,
-  platform?: string,
-) {
-  const oauth2Client = this.googleProvider.getOAuthClient();
+  generateGoogleAuthUrl(
+    userId: string,
+    accountType?: string,
+    platform?: string,
+  ) {
+    const oauth2Client = this.googleProvider.getOAuthClient();
 
-  const safeAccountType =
-    accountType === ConnectedAccountType.WORK
-      ? ConnectedAccountType.WORK
-      : ConnectedAccountType.PERSONAL;
+    const safeAccountType =
+      accountType === ConnectedAccountType.WORK
+        ? ConnectedAccountType.WORK
+        : ConnectedAccountType.PERSONAL;
 
-  const safePlatform = platform === 'mobile' ? 'mobile' : 'web';
+    const safePlatform = platform === 'mobile' ? 'mobile' : 'web';
 
-  const state = this.createState(
-    userId,
-    safeAccountType,
-    safePlatform,
-  );
+    const state = this.createState(userId, safeAccountType, safePlatform);
 
-  const url = oauth2Client.generateAuthUrl({
-    access_type: 'offline',
-    prompt: 'consent',
-    include_granted_scopes: true,
-    scope: [
-      'openid',
-      'email',
-      'profile',
-      this.GOOGLE_CALENDAR_SCOPE,
-      this.GOOGLE_GMAIL_READONLY_SCOPE,
-    ],
-    state,
-  });
+    const url = oauth2Client.generateAuthUrl({
+      access_type: 'offline',
+      prompt: 'consent',
+      include_granted_scopes: true,
+      scope: [
+        'openid',
+        'email',
+        'profile',
+        this.GOOGLE_CALENDAR_SCOPE,
+        this.GOOGLE_GMAIL_READONLY_SCOPE,
+      ],
+      state,
+    });
 
-  return {
-    success: true,
-    message: 'Google OAuth URL generated successfully',
-    data: { url },
-  };
-}
+    return {
+      success: true,
+      message: 'Google OAuth URL generated successfully',
+      data: { url },
+    };
+  }
 
   async handleGoogleCallback(code: string, state: string) {
     if (!code) {
@@ -103,21 +97,21 @@ export class IntegrationsService {
 
     oauth2Client.setCredentials(tokens);
 
-let googleEmail = '';
+    let googleEmail = '';
 
-try {
-  const oauth2 = google.oauth2({
-    version: 'v2',
-    auth: oauth2Client,
-  });
+    try {
+      const oauth2 = google.oauth2({
+        version: 'v2',
+        auth: oauth2Client,
+      });
 
-  const profile = await oauth2.userinfo.get();
+      const profile = await oauth2.userinfo.get();
 
-  googleEmail = profile.data.email?.toLowerCase() || '';
-} catch (error) {
-  console.log('GOOGLE PROFILE EMAIL ERROR:', error);
-  googleEmail = '';
-}
+      googleEmail = profile.data.email?.toLowerCase() || '';
+    } catch (error) {
+      console.log('GOOGLE PROFILE EMAIL ERROR:', error);
+      googleEmail = '';
+    }
 
     if (!googleEmail) {
       throw new BadRequestException('Unable to fetch Google account email');
@@ -377,192 +371,190 @@ try {
   //   }
   // }
 
-
   async getGoogleCalendarEvents(
-  userId: string,
-  accountId?: string,
-  range = 'today',
-  search?: string,
-  pageToken?: string,
-  limit?: string,
-  after?: Date
-) {
-  const account = await this.getConnectedGoogleAccount(userId, accountId);
+    userId: string,
+    accountId?: string,
+    range = 'today',
+    search?: string,
+    pageToken?: string,
+    limit?: string,
+    after?: Date,
+  ) {
+    const account = await this.getConnectedGoogleAccount(userId, accountId);
 
-  this.ensureScope(account, this.GOOGLE_CALENDAR_SCOPE, 'Google Calendar');
+    this.ensureScope(account, this.GOOGLE_CALENDAR_SCOPE, 'Google Calendar');
 
-  const oauth2Client = await this.getAuthorizedGoogleClient(account);
+    const oauth2Client = await this.getAuthorizedGoogleClient(account);
 
-  const calendar = google.calendar({
-    version: 'v3',
-    auth: oauth2Client,
-  });
-
-  const maxResults = Math.min(Number(limit) || 10, 50);
-  const { timeMin, timeMax } = this.getCalendarRange(range);
-
-  try {
-    const response = await calendar.events.list({
-      calendarId: 'primary',
-      timeMin,
-      timeMax,
-      maxResults,
-      pageToken,
-      singleEvents: true,
-      orderBy: 'startTime',
-      q: search?.trim() || undefined,
-      updatedMin: after?.toISOString(),
+    const calendar = google.calendar({
+      version: 'v3',
+      auth: oauth2Client,
     });
 
-    const events =
-      response.data.items?.map((event) => {
-        const mappedEvent = {
-          id: event.id || '',
-          title: event.summary || 'No title',
-          description: event.description || '',
-          location: event.location || '',
-          startTime: event.start?.dateTime || event.start?.date || null,
-          endTime: event.end?.dateTime || event.end?.date || null,
-          isAllDay: !!event.start?.date,
-          htmlLink: event.htmlLink || '',
-          status: event.status || '',
-          accountId: account._id.toString(),
-          accountEmail: account.email,
-          category: this.getCalendarEventCategory(event),
-          priority: this.getCalendarEventPriority(event),
-        };
+    const maxResults = Math.min(Number(limit) || 10, 50);
+    const { timeMin, timeMax } = this.getCalendarRange(range);
 
-        return mappedEvent;
-      }) || [];
+    try {
+      const response = await calendar.events.list({
+        calendarId: 'primary',
+        timeMin,
+        timeMax,
+        maxResults,
+        pageToken,
+        singleEvents: true,
+        orderBy: 'startTime',
+        q: search?.trim() || undefined,
+        updatedMin: after?.toISOString(),
+      });
+
+      const events =
+        response.data.items?.map((event) => {
+          const mappedEvent = {
+            id: event.id || '',
+            title: event.summary || 'No title',
+            description: event.description || '',
+            location: event.location || '',
+            startTime: event.start?.dateTime || event.start?.date || null,
+            endTime: event.end?.dateTime || event.end?.date || null,
+            isAllDay: !!event.start?.date,
+            htmlLink: event.htmlLink || '',
+            status: event.status || '',
+            accountId: account._id.toString(),
+            accountEmail: account.email,
+            category: this.getCalendarEventCategory(event),
+            priority: this.getCalendarEventPriority(event),
+          };
+
+          return mappedEvent;
+        }) || [];
+
+      return {
+        success: true,
+        message: 'Google Calendar events fetched successfully',
+        summary: this.buildCalendarSummary(events),
+        data: events,
+        pagination: {
+          nextPageToken: response.data.nextPageToken || null,
+          limit: maxResults,
+        },
+      };
+    } catch (error) {
+      this.handleGoogleApiError(error, 'Google Calendar');
+    }
+  }
+
+  private getCalendarRange(range?: string) {
+    const now = new Date();
+
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date(start);
+
+    switch (range) {
+      case 'tomorrow':
+        start.setDate(start.getDate() + 1);
+        end.setDate(start.getDate() + 1);
+        break;
+
+      case 'week':
+        end.setDate(start.getDate() + 7);
+        break;
+
+      case 'month':
+        end.setMonth(start.getMonth() + 1);
+        break;
+
+      case 'today':
+      default:
+        end.setDate(start.getDate() + 1);
+        break;
+    }
 
     return {
-      success: true,
-      message: 'Google Calendar events fetched successfully',
-      summary: this.buildCalendarSummary(events),
-      data: events,
-      pagination: {
-        nextPageToken: response.data.nextPageToken || null,
-        limit: maxResults,
-      },
+      timeMin: start.toISOString(),
+      timeMax: end.toISOString(),
     };
-  } catch (error) {
-    this.handleGoogleApiError(error, 'Google Calendar');
-  }
-}
-
-private getCalendarRange(range?: string) {
-  const now = new Date();
-
-  const start = new Date(now);
-  start.setHours(0, 0, 0, 0);
-
-  const end = new Date(start);
-
-  switch (range) {
-    case 'tomorrow':
-      start.setDate(start.getDate() + 1);
-      end.setDate(start.getDate() + 1);
-      break;
-
-    case 'week':
-      end.setDate(start.getDate() + 7);
-      break;
-
-    case 'month':
-      end.setMonth(start.getMonth() + 1);
-      break;
-
-    case 'today':
-    default:
-      end.setDate(start.getDate() + 1);
-      break;
   }
 
-  return {
-    timeMin: start.toISOString(),
-    timeMax: end.toISOString(),
-  };
-}
+  private getCalendarEventCategory(event: any): string {
+    const text = `${event.summary || ''} ${event.description || ''} ${
+      event.location || ''
+    }`.toLowerCase();
 
-private getCalendarEventCategory(event: any): string {
-  const text = `${event.summary || ''} ${event.description || ''} ${
-    event.location || ''
-  }`.toLowerCase();
+    if (
+      text.includes('interview') ||
+      text.includes('recruiter') ||
+      text.includes('hiring') ||
+      text.includes('hr')
+    ) {
+      return 'INTERVIEW';
+    }
 
-  if (
-    text.includes('interview') ||
-    text.includes('recruiter') ||
-    text.includes('hiring') ||
-    text.includes('hr')
-  ) {
-    return 'INTERVIEW';
+    if (
+      text.includes('deadline') ||
+      text.includes('due') ||
+      text.includes('submit') ||
+      text.includes('last date')
+    ) {
+      return 'DEADLINE';
+    }
+
+    if (
+      text.includes('flight') ||
+      text.includes('hotel') ||
+      text.includes('travel') ||
+      text.includes('trip') ||
+      text.includes('airport')
+    ) {
+      return 'TRAVEL';
+    }
+
+    if (
+      text.includes('reminder') ||
+      text.includes('follow up') ||
+      text.includes('follow-up')
+    ) {
+      return 'REMINDER';
+    }
+
+    if (
+      text.includes('meeting') ||
+      text.includes('meet') ||
+      text.includes('call') ||
+      text.includes('sync') ||
+      text.includes('discussion')
+    ) {
+      return 'MEETING';
+    }
+
+    return 'PERSONAL';
   }
 
-  if (
-    text.includes('deadline') ||
-    text.includes('due') ||
-    text.includes('submit') ||
-    text.includes('last date')
-  ) {
-    return 'DEADLINE';
+  private getCalendarEventPriority(event: any): string {
+    const category = this.getCalendarEventCategory(event);
+
+    if (category === 'INTERVIEW' || category === 'DEADLINE') {
+      return 'HIGH';
+    }
+
+    if (category === 'MEETING' || category === 'TRAVEL') {
+      return 'MEDIUM';
+    }
+
+    return 'LOW';
   }
 
-  if (
-    text.includes('flight') ||
-    text.includes('hotel') ||
-    text.includes('travel') ||
-    text.includes('trip') ||
-    text.includes('airport')
-  ) {
-    return 'TRAVEL';
+  private buildCalendarSummary(events: any[]) {
+    return {
+      todayEvents: events.length,
+      upcomingMeetings: events.filter((event) => event.category === 'MEETING')
+        .length,
+      deadlines: events.filter((event) => event.category === 'DEADLINE').length,
+      interviews: events.filter((event) => event.category === 'INTERVIEW')
+        .length,
+    };
   }
-
-  if (
-    text.includes('reminder') ||
-    text.includes('follow up') ||
-    text.includes('follow-up')
-  ) {
-    return 'REMINDER';
-  }
-
-  if (
-    text.includes('meeting') ||
-    text.includes('meet') ||
-    text.includes('call') ||
-    text.includes('sync') ||
-    text.includes('discussion')
-  ) {
-    return 'MEETING';
-  }
-
-  return 'PERSONAL';
-}
-
-private getCalendarEventPriority(event: any): string {
-  const category = this.getCalendarEventCategory(event);
-
-  if (category === 'INTERVIEW' || category === 'DEADLINE') {
-    return 'HIGH';
-  }
-
-  if (category === 'MEETING' || category === 'TRAVEL') {
-    return 'MEDIUM';
-  }
-
-  return 'LOW';
-}
-
-private buildCalendarSummary(events: any[]) {
-  return {
-    todayEvents: events.length,
-    upcomingMeetings: events.filter((event) => event.category === 'MEETING')
-      .length,
-    deadlines: events.filter((event) => event.category === 'DEADLINE').length,
-    interviews: events.filter((event) => event.category === 'INTERVIEW')
-      .length,
-  };
-}
-
 
   async getGoogleGmailStatus(userId: string) {
     const account = await this.getConnectedGoogleAccount(userId);
@@ -581,139 +573,139 @@ private buildCalendarSummary(events: any[]) {
   }
 
   async getGoogleGmailMessages(
-  userId: string,
-  accountId?: string,
-  pageToken?: string,
-  limit?: string,
-  search?: string,
-  category?: string,
-  days?: string,
-   after?: Date,
-) {
-  try {
-    const gmail = await this.getGmailClient(userId, accountId);
+    userId: string,
+    accountId?: string,
+    pageToken?: string,
+    limit?: string,
+    search?: string,
+    category?: string,
+    days?: string,
+    after?: Date,
+  ) {
+    try {
+      const gmail = await this.getGmailClient(userId, accountId);
 
-    const maxResults = Math.min(Number(limit) || 20, 50);
-    const safeDays = [7, 30, 90].includes(Number(days)) ? Number(days) : 30;
+      const maxResults = Math.min(Number(limit) || 20, 50);
+      const safeDays = [7, 30, 90].includes(Number(days)) ? Number(days) : 30;
 
-    const query = this.buildGmailQuery(search, category, safeDays, after);
+      const query = this.buildGmailQuery(search, category, safeDays, after);
 
-    const [total, unread, important, response] = await Promise.all([
-      gmail.users.messages.list({
-        userId: 'me',
-        q: query,
-        maxResults: 1,
-      }),
-
-      gmail.users.messages.list({
-        userId: 'me',
-        q: `${query} is:unread`,
-        maxResults: 1,
-      }),
-
-      gmail.users.messages.list({
-        userId: 'me',
-        q: `${query} is:important`,
-        maxResults: 1,
-      }),
-
-      gmail.users.messages.list({
-        userId: 'me',
-        q: query,
-        maxResults,
-        pageToken,
-      }),
-    ]);
-
-    const messageIds = response.data.messages || [];
-
-    const mappedMessages = await Promise.all(
-      messageIds.map(async (message) => {
-        // const detail = await gmail.users.messages.get({
-        //   userId: 'me',
-        //   id: message.id || '',
-        //   format: 'metadata',
-        //   metadataHeaders: ['Subject', 'From', 'Date'],
-        // });
-
-        const detail = await gmail.users.messages.get({
+      const [total, unread, important, response] = await Promise.all([
+        gmail.users.messages.list({
           userId: 'me',
-          id: message.id || '',
-          format: 'full',
-        });
+          q: query,
+          maxResults: 1,
+        }),
 
-        const mappedMessage = this.mapGmailMessage(detail.data);
+        gmail.users.messages.list({
+          userId: 'me',
+          q: `${query} is:unread`,
+          maxResults: 1,
+        }),
 
-        return {
-          ...mappedMessage,
-          category: this.getGmailMessageCategory(mappedMessage),
-          priority: this.getGmailMessagePriority(mappedMessage),
-        };
-      }),
-    );
+        gmail.users.messages.list({
+          userId: 'me',
+          q: `${query} is:important`,
+          maxResults: 1,
+        }),
 
-const safeCategory = category?.toUpperCase() || 'ALL';
+        gmail.users.messages.list({
+          userId: 'me',
+          q: query,
+          maxResults,
+          pageToken,
+        }),
+      ]);
 
-const messages = mappedMessages.filter((email) => {
-  if (this.isUselessEmail(email)) {
-    return false;
-  }
+      const messageIds = response.data.messages || [];
 
-  if (safeCategory !== 'ALL' && email.category !== safeCategory) {
-    return false;
-  }
+      const mappedMessages = await Promise.all(
+        messageIds.map(async (message) => {
+          // const detail = await gmail.users.messages.get({
+          //   userId: 'me',
+          //   id: message.id || '',
+          //   format: 'metadata',
+          //   metadataHeaders: ['Subject', 'From', 'Date'],
+          // });
 
-  return true;
-});
+          const detail = await gmail.users.messages.get({
+            userId: 'me',
+            id: message.id || '',
+            format: 'full',
+          });
 
-    return {
-      success: true,
-      message: 'Gmail messages fetched successfully',
-      // summary: {
-      //   totalEmails: total.data.resultSizeEstimate || 0,
-      //   unreadEmails: unread.data.resultSizeEstimate || 0,
-      //   importantEmails: important.data.resultSizeEstimate || 0,
-      // },
+          const mappedMessage = this.mapGmailMessage(detail.data);
 
-      summary: {
-      totalEmails: messages.length,
-      unreadEmails: messages.filter((email) => email.isUnread).length,
-      importantEmails: messages.filter(
-        (email) =>
-          email.priority === 'HIGH' ||
-          email.category === 'INTERVIEW' ||
-          email.category === 'DEADLINE',
-      ).length,
-    },
-      data: messages,
-      pagination: {
-        nextPageToken: response.data.nextPageToken || null,
+          return {
+            ...mappedMessage,
+            category: this.getGmailMessageCategory(mappedMessage),
+            priority: this.getGmailMessagePriority(mappedMessage),
+          };
+        }),
+      );
+
+      const safeCategory = category?.toUpperCase() || 'ALL';
+
+      const messages = mappedMessages.filter((email) => {
+        if (this.isUselessEmail(email)) {
+          return false;
+        }
+
+        if (safeCategory !== 'ALL' && email.category !== safeCategory) {
+          return false;
+        }
+
+        return true;
+      });
+
+      return {
+        success: true,
+        message: 'Gmail messages fetched successfully',
+        // summary: {
+        //   totalEmails: total.data.resultSizeEstimate || 0,
+        //   unreadEmails: unread.data.resultSizeEstimate || 0,
+        //   importantEmails: important.data.resultSizeEstimate || 0,
+        // },
+
+        summary: {
+          totalEmails: messages.length,
+          unreadEmails: messages.filter((email) => email.isUnread).length,
+          importantEmails: messages.filter(
+            (email) =>
+              email.priority === 'HIGH' ||
+              email.category === 'INTERVIEW' ||
+              email.category === 'DEADLINE',
+          ).length,
+        },
+        data: messages,
+        pagination: {
+          nextPageToken: response.data.nextPageToken || null,
           resultSizeEstimate: messages.length,
           limit: maxResults,
-      },
-    };
-  } catch (error) {
-    this.handleGoogleApiError(error, 'Gmail');
+        },
+      };
+    } catch (error) {
+      this.handleGoogleApiError(error, 'Gmail');
+    }
   }
-}
 
-private buildGmailQuery(
-  search?: string,
-  category?: string,
-  days = 30,
-  after?: Date,
-): string {
-  const baseFilters = [
-    after
-      ? `after:${Math.floor(after.getTime() / 1000)}`
-      : `newer_than:${days}d`,
-    '-in:spam',
-    '-in:trash',
-    '-(quora OR digest OR newsletter OR promotion OR unsubscribe)',
-  ];
+  private buildGmailQuery(
+    search?: string,
+    category?: string,
+    days = 30,
+    after?: Date,
+  ): string {
+    const baseFilters = [
+      after
+        ? `after:${Math.floor(after.getTime() / 1000)}`
+        : `newer_than:${days}d`,
+      '-in:spam',
+      '-in:trash',
+      '-(quora OR digest OR newsletter OR promotion OR unsubscribe)',
+    ];
 
-  const categoryQueries: Record<string, string> = {
-    ALL: `(
+    const categoryQueries: Record<string, string> = {
+      ALL: `(
       interview OR
       interviewed OR
       recruiter OR
@@ -761,60 +753,59 @@ private buildGmailQuery(
       tracking OR
       "out for delivery"
     )`,
-        INTERVIEW:
-      '(interview OR interviewed OR recruiter OR hiring OR HR OR job OR offer OR selected OR shortlisted OR "follow-up" OR "follow up" OR "next steps")',
+      INTERVIEW:
+        '(interview OR interviewed OR recruiter OR hiring OR HR OR job OR offer OR selected OR shortlisted OR "follow-up" OR "follow up" OR "next steps")',
 
-    ORDER:
-      '(order OR ordered OR delivered OR shipped OR shipment OR tracking OR invoice OR receipt OR "out for delivery" OR amazon OR myntra OR flipkart)',
+      ORDER:
+        '(order OR ordered OR delivered OR shipped OR shipment OR tracking OR invoice OR receipt OR "out for delivery" OR amazon OR myntra OR flipkart)',
 
-    SUBSCRIPTION:
-      '(subscription OR membership OR renewed OR renewal OR netflix OR "amazon prime" OR "google play")',
+      SUBSCRIPTION:
+        '(subscription OR membership OR renewed OR renewal OR netflix OR "amazon prime" OR "google play")',
 
-    PAYMENT:
-      '("payment failed" OR "payment unsuccessful" OR paid OR payment OR bill OR invoice OR receipt)',
+      PAYMENT:
+        '("payment failed" OR "payment unsuccessful" OR paid OR payment OR bill OR invoice OR receipt)',
 
-    MEETING:
-      '(meeting OR "calendar invite" OR invitation OR schedule OR scheduled)',
+      MEETING:
+        '(meeting OR "calendar invite" OR invitation OR schedule OR scheduled)',
 
-    DEADLINE:
-      '(deadline OR "due date" OR "last date" OR "final reminder")',
-  };
+      DEADLINE: '(deadline OR "due date" OR "last date" OR "final reminder")',
+    };
 
-  const safeCategory = category?.toUpperCase() || 'ALL';
-  const categoryQuery = categoryQueries[safeCategory] || categoryQueries.ALL;
+    const safeCategory = category?.toUpperCase() || 'ALL';
+    const categoryQuery = categoryQueries[safeCategory] || categoryQueries.ALL;
 
-  const safeSearch = search?.trim();
+    const safeSearch = search?.trim();
 
-  if (safeSearch) {
-    baseFilters.push(`"${safeSearch.replace(/"/g, '')}"`);
+    if (safeSearch) {
+      baseFilters.push(`"${safeSearch.replace(/"/g, '')}"`);
+    }
+
+    return [...baseFilters, categoryQuery].join(' ');
   }
 
-  return [...baseFilters, categoryQuery].join(' ');
-}
+  private isUselessEmail(email: any): boolean {
+    const text = `${email.subject || ''} ${email.from || ''} ${
+      email.snippet || ''
+    }`.toLowerCase();
 
-private isUselessEmail(email: any): boolean {
-  const text = `${email.subject || ''} ${email.from || ''} ${
-    email.snippet || ''
-  }`.toLowerCase();
+    const blockedKeywords = [
+      'quora',
+      'digest',
+      'newsletter',
+      'unsubscribe',
+      'facebook',
+      'instagram',
+      'twitter',
+      'x.com',
+      'reddit',
+      'medium',
+      'promotional',
+      'promotion',
+      'marketing',
+    ];
 
-  const blockedKeywords = [
-    'quora',
-    'digest',
-    'newsletter',
-    'unsubscribe',
-    'facebook',
-    'instagram',
-    'twitter',
-    'x.com',
-    'reddit',
-    'medium',
-    'promotional',
-    'promotion',
-    'marketing',
-  ];
-
-  return blockedKeywords.some((word) => text.includes(word));
-}
+    return blockedKeywords.some((word) => text.includes(word));
+  }
 
   async getGoogleUnreadMessages(userId: string) {
     const gmail = await this.getGmailClient(userId);
@@ -872,31 +863,31 @@ private isUselessEmail(email: any): boolean {
     }
 
     if (
-  text.includes('payment failed') ||
-  text.includes('payment unsuccessful') ||
-  text.includes('last payment attempt') ||
-  text.includes('bill payment') ||
-  text.includes('recharge') ||
-  text.includes('paid') ||
-  text.includes('payment')
-) {
-  return 'PAYMENT';
-}
+      text.includes('payment failed') ||
+      text.includes('payment unsuccessful') ||
+      text.includes('last payment attempt') ||
+      text.includes('bill payment') ||
+      text.includes('recharge') ||
+      text.includes('paid') ||
+      text.includes('payment')
+    ) {
+      return 'PAYMENT';
+    }
 
-if (
-  text.includes('order') ||
-  text.includes('ordered') ||
-  text.includes('delivered') ||
-  text.includes('shipped') ||
-  text.includes('shipment') ||
-  text.includes('tracking') ||
-  text.includes('out for delivery') ||
-  text.includes('amazon') ||
-  text.includes('myntra') ||
-  text.includes('flipkart')
-) {
-  return 'ORDER';
-}
+    if (
+      text.includes('order') ||
+      text.includes('ordered') ||
+      text.includes('delivered') ||
+      text.includes('shipped') ||
+      text.includes('shipment') ||
+      text.includes('tracking') ||
+      text.includes('out for delivery') ||
+      text.includes('amazon') ||
+      text.includes('myntra') ||
+      text.includes('flipkart')
+    ) {
+      return 'ORDER';
+    }
 
     if (
       text.includes('subscription') ||
@@ -964,91 +955,81 @@ if (
   }
 
   async getGoogleGmailSummary(userId: string, accountId?: string) {
-  try {
-    const gmail = await this.getGmailClient(userId, accountId);
+    try {
+      const gmail = await this.getGmailClient(userId, accountId);
 
-    const now = new Date();
+      const now = new Date();
 
-    const istNow = new Date(
-      now.toLocaleString('en-US', {
-        timeZone: 'Asia/Kolkata',
-      }),
-    );
+      const istNow = new Date(
+        now.toLocaleString('en-US', {
+          timeZone: 'Asia/Kolkata',
+        }),
+      );
 
-    const istStart = new Date(istNow);
-    istStart.setHours(0, 0, 0, 0);
+      const istStart = new Date(istNow);
+      istStart.setHours(0, 0, 0, 0);
 
-    const istEnd = new Date(istStart);
-    istEnd.setDate(istEnd.getDate() + 1);
+      const istEnd = new Date(istStart);
+      istEnd.setDate(istEnd.getDate() + 1);
 
-    const utcStart = new Date(
-      istStart.getTime() - 5.5 * 60 * 60 * 1000,
-    );
+      const utcStart = new Date(istStart.getTime() - 5.5 * 60 * 60 * 1000);
 
-    const utcEnd = new Date(
-      istEnd.getTime() - 5.5 * 60 * 60 * 1000,
-    );
+      const utcEnd = new Date(istEnd.getTime() - 5.5 * 60 * 60 * 1000);
 
-    const startTimestamp = Math.floor(utcStart.getTime() / 1000);
-    const endTimestamp = Math.floor(utcEnd.getTime() / 1000);
+      const startTimestamp = Math.floor(utcStart.getTime() / 1000);
+      const endTimestamp = Math.floor(utcEnd.getTime() / 1000);
 
-    const baseQuery = `in:inbox after:${startTimestamp} before:${endTimestamp} -in:spam -in:trash`;
+      const baseQuery = `in:inbox after:${startTimestamp} before:${endTimestamp} -in:spam -in:trash`;
 
-    const response = await gmail.users.messages.list({
-      userId: 'me',
-      q: baseQuery,
-      maxResults: 5,
-    });
+      const response = await gmail.users.messages.list({
+        userId: 'me',
+        q: baseQuery,
+        maxResults: 5,
+      });
 
-    const messageIds = response.data.messages || [];
+      const messageIds = response.data.messages || [];
 
-    const emails = await Promise.all(
-      messageIds.map(async (message) => {
-        const detail = await gmail.users.messages.get({
-          userId: 'me',
-          id: message.id || '',
-          format: 'metadata',
-          metadataHeaders: ['Subject', 'From', 'Date'],
-        });
+      const emails = await Promise.all(
+        messageIds.map(async (message) => {
+          const detail = await gmail.users.messages.get({
+            userId: 'me',
+            id: message.id || '',
+            format: 'metadata',
+            metadataHeaders: ['Subject', 'From', 'Date'],
+          });
 
-        const mappedMessage = this.mapGmailMessage(detail.data);
+          const mappedMessage = this.mapGmailMessage(detail.data);
 
-        return {
-          ...mappedMessage,
-          category: this.getGmailMessageCategory(mappedMessage),
-          priority: this.getGmailMessagePriority(mappedMessage),
-        };
-      }),
-    );
+          return {
+            ...mappedMessage,
+            category: this.getGmailMessageCategory(mappedMessage),
+            priority: this.getGmailMessagePriority(mappedMessage),
+          };
+        }),
+      );
 
-    return {
-      success: true,
-      message: 'Gmail summary fetched successfully',
-      data: {
-        totalEmails: emails.length,
-        unreadEmails: emails.filter((email) => email.isUnread).length,
-        importantEmails: emails.filter(
-          (email) =>
-            email.priority === 'HIGH' ||
-            email.category === 'INTERVIEW' ||
-            email.category === 'DEADLINE',
-        ).length,
-        emails,
-      },
-    };
-  } catch (error) {
-    this.handleGoogleApiError(error, 'Gmail');
+      return {
+        success: true,
+        message: 'Gmail summary fetched successfully',
+        data: {
+          totalEmails: emails.length,
+          unreadEmails: emails.filter((email) => email.isUnread).length,
+          importantEmails: emails.filter(
+            (email) =>
+              email.priority === 'HIGH' ||
+              email.category === 'INTERVIEW' ||
+              email.category === 'DEADLINE',
+          ).length,
+          emails,
+        },
+      };
+    } catch (error) {
+      this.handleGoogleApiError(error, 'Gmail');
+    }
   }
-}
 
-  private async getGmailClient(
-    userId: string,
-    accountId?: string,
-  ) {
-    const account = await this.getConnectedGoogleAccount(
-      userId,
-      accountId,
-    );
+  private async getGmailClient(userId: string, accountId?: string) {
+    const account = await this.getConnectedGoogleAccount(userId, accountId);
 
     this.ensureScope(account, this.GOOGLE_GMAIL_READONLY_SCOPE, 'Gmail');
 
@@ -1213,69 +1194,65 @@ if (
     };
   }
 
-  private extractGmailBody(
-  payload?: gmail_v1.Schema$MessagePart,
-): string {
-  if (!payload) {
-    return '';
-  }
+  private extractGmailBody(payload?: gmail_v1.Schema$MessagePart): string {
+    if (!payload) {
+      return '';
+    }
 
-  const plainTextParts: string[] = [];
-  const htmlParts: string[] = [];
+    const plainTextParts: string[] = [];
+    const htmlParts: string[] = [];
 
-  const walkParts = (part: gmail_v1.Schema$MessagePart) => {
-    const decodedBody = this.decodeGmailBody(part.body?.data);
+    const walkParts = (part: gmail_v1.Schema$MessagePart) => {
+      const decodedBody = this.decodeGmailBody(part.body?.data);
 
-    if (decodedBody) {
-      if (
-        part.mimeType === 'text/plain' ||
-        part.mimeType === 'message/delivery-status' ||
-        part.mimeType === 'message/rfc822'
-      ) {
-        plainTextParts.push(decodedBody);
-      } else if (part.mimeType === 'text/html') {
-        htmlParts.push(decodedBody);
+      if (decodedBody) {
+        if (
+          part.mimeType === 'text/plain' ||
+          part.mimeType === 'message/delivery-status' ||
+          part.mimeType === 'message/rfc822'
+        ) {
+          plainTextParts.push(decodedBody);
+        } else if (part.mimeType === 'text/html') {
+          htmlParts.push(decodedBody);
+        }
       }
+
+      for (const child of part.parts || []) {
+        walkParts(child);
+      }
+    };
+
+    walkParts(payload);
+
+    if (plainTextParts.length) {
+      return plainTextParts.join('\n').trim();
     }
 
-    for (const child of part.parts || []) {
-      walkParts(child);
+    if (htmlParts.length) {
+      return this.stripHtml(htmlParts.join('\n')).trim();
     }
-  };
 
-  walkParts(payload);
-
-  if (plainTextParts.length) {
-    return plainTextParts.join('\n').trim();
-  }
-
-  if (htmlParts.length) {
-    return this.stripHtml(htmlParts.join('\n')).trim();
-  }
-
-  return '';
-}
-
-private decodeGmailBody(data?: string | null): string {
-  if (!data) {
     return '';
   }
 
-  try {
-    const normalized = data
-      .replace(/-/g, '+')
-      .replace(/_/g, '/');
+  private decodeGmailBody(data?: string | null): string {
+    if (!data) {
+      return '';
+    }
 
-    const padded = normalized.padEnd(
-      Math.ceil(normalized.length / 4) * 4,
-      '=',
-    );
+    try {
+      const normalized = data.replace(/-/g, '+').replace(/_/g, '/');
 
-    return Buffer.from(padded, 'base64').toString('utf8');
-  } catch {
-    return '';
+      const padded = normalized.padEnd(
+        Math.ceil(normalized.length / 4) * 4,
+        '=',
+      );
+
+      return Buffer.from(padded, 'base64').toString('utf8');
+    } catch {
+      return '';
+    }
   }
-}
 
   private stripHtml(html: string): string {
     return html
@@ -1324,91 +1301,88 @@ private decodeGmailBody(data?: string | null): string {
   }
 
   private handleGoogleApiError(error: any, serviceName: string): never {
-  console.log(`${serviceName} GOOGLE API ERROR`);
-  console.log('code:', error?.code);
-  console.log('message:', error?.message);
-  console.log('response:', error?.response?.data);
+    console.log(`${serviceName} GOOGLE API ERROR`);
+    console.log('code:', error?.code);
+    console.log('message:', error?.message);
+    console.log('response:', error?.response?.data);
 
-  const status = error?.code || error?.response?.status;
+    const status = error?.code || error?.response?.status;
 
-  if (status === 401) {
-    throw new ForbiddenException(
-      `${serviceName} token expired or invalid. Please reconnect Google account.`,
-    );
+    if (status === 401) {
+      throw new ForbiddenException(
+        `${serviceName} token expired or invalid. Please reconnect Google account.`,
+      );
+    }
+
+    if (status === 403) {
+      throw new ForbiddenException(
+        error?.response?.data?.error_description ||
+          error?.response?.data?.error ||
+          error?.message ||
+          `${serviceName} permission denied. Please reconnect Google account with required permissions.`,
+      );
+    }
+
+    throw new BadRequestException(error?.message || `${serviceName} API error`);
   }
 
-  if (status === 403) {
-    throw new ForbiddenException(
-      error?.response?.data?.error_description ||
-        error?.response?.data?.error ||
-        error?.message ||
-        `${serviceName} permission denied. Please reconnect Google account with required permissions.`,
+  private createState(
+    userId: string,
+    accountType: ConnectedAccountType,
+    platform: 'web' | 'mobile' = 'web',
+  ): string {
+    const payload = {
+      userId,
+      accountType,
+      platform,
+      timestamp: Date.now(),
+    };
+
+    const payloadBase64 = Buffer.from(JSON.stringify(payload)).toString(
+      'base64url',
     );
+
+    const signature = this.signState(payloadBase64);
+
+    return `${payloadBase64}.${signature}`;
   }
-
-  throw new BadRequestException(
-    error?.message || `${serviceName} API error`,
-  );
-}
-
-private createState(
-  userId: string,
-  accountType: ConnectedAccountType,
-  platform: 'web' | 'mobile' = 'web',
-): string {
-  const payload = {
-    userId,
-    accountType,
-    platform,
-    timestamp: Date.now(),
-  };
-
-  const payloadBase64 = Buffer.from(JSON.stringify(payload)).toString(
-    'base64url',
-  );
-
-  const signature = this.signState(payloadBase64);
-
-  return `${payloadBase64}.${signature}`;
-}
 
   private verifyState(state: string): {
-  userId: string;
-  accountType: ConnectedAccountType;
-  platform: 'web' | 'mobile';
-} {
-  const [payloadBase64, signature] = state.split('.');
+    userId: string;
+    accountType: ConnectedAccountType;
+    platform: 'web' | 'mobile';
+  } {
+    const [payloadBase64, signature] = state.split('.');
 
-  if (!payloadBase64 || !signature) {
-    throw new UnauthorizedException('Invalid OAuth state');
+    if (!payloadBase64 || !signature) {
+      throw new UnauthorizedException('Invalid OAuth state');
+    }
+
+    const expectedSignature = this.signState(payloadBase64);
+
+    if (signature !== expectedSignature) {
+      throw new UnauthorizedException('Invalid OAuth state signature');
+    }
+
+    const payload = JSON.parse(
+      Buffer.from(payloadBase64, 'base64url').toString('utf8'),
+    );
+
+    const stateAge = Date.now() - payload.timestamp;
+
+    if (stateAge > 10 * 60 * 1000) {
+      throw new UnauthorizedException('OAuth state expired');
+    }
+
+    return {
+      userId: payload.userId,
+      accountType:
+        payload.accountType === ConnectedAccountType.WORK
+          ? ConnectedAccountType.WORK
+          : ConnectedAccountType.PERSONAL,
+      platform: payload.platform === 'mobile' ? 'mobile' : 'web',
+    };
   }
-
-  const expectedSignature = this.signState(payloadBase64);
-
-  if (signature !== expectedSignature) {
-    throw new UnauthorizedException('Invalid OAuth state signature');
-  }
-
-  const payload = JSON.parse(
-    Buffer.from(payloadBase64, 'base64url').toString('utf8'),
-  );
-
-  const stateAge = Date.now() - payload.timestamp;
-
-  if (stateAge > 10 * 60 * 1000) {
-    throw new UnauthorizedException('OAuth state expired');
-  }
-
-  return {
-    userId: payload.userId,
-    accountType:
-      payload.accountType === ConnectedAccountType.WORK
-        ? ConnectedAccountType.WORK
-        : ConnectedAccountType.PERSONAL,
-    platform: payload.platform === 'mobile' ? 'mobile' : 'web',
-  };
-}
-
 
   //   private verifyState(state: string): {
   //     userId: string;
@@ -1461,117 +1435,103 @@ private createState(
   }
 
   private generateOtp(): string {
-    return Math.floor(
-      100000 + Math.random() * 900000,
-    ).toString();
+    return Math.floor(100000 + Math.random() * 900000).toString();
   }
 
   async sendGoogleConnectOtp(userId: string) {
-  const user = await this.userService.findById(userId);
+    const user = await this.userService.findById(userId);
 
-  if (!user) {
-    throw new NotFoundException('User not found');
-  }
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
 
-  const otp = this.generateOtp();
+    const otp = this.generateOtp();
 
-  await this.userService.updateById(userId, {
-    otp: {
-      code: otp,
-      expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-      verified: false,
-    },
-  });
+    await this.userService.updateById(userId, {
+      otp: {
+        code: otp,
+        expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        verified: false,
+      },
+    });
 
-  await this.mailService.sendGoogleConnectOtp(
-    user.email,
-    otp,
-    user.firstName,
-  );
-
-  return {
-    success: true,
-    message: 'OTP sent successfully',
-  };
-}
-
-async verifyGoogleConnectOtp(
-  userId: string,
-  otp: string,
-) {
-  const user = await this.userService.findById(userId);
-
-  if (!user) {
-    throw new NotFoundException('User not found');
-  }
-
-  if (!user.otp?.code) {
-    throw new BadRequestException(
-      'OTP not requested',
+    await this.mailService.sendGoogleConnectOtp(
+      user.email,
+      otp,
+      user.firstName,
     );
+
+    return {
+      success: true,
+      message: 'OTP sent successfully',
+    };
   }
 
-  if (user.otp.code !== otp) {
-    throw new BadRequestException(
-      'Invalid OTP',
-    );
-  }
+  async verifyGoogleConnectOtp(userId: string, otp: string) {
+    const user = await this.userService.findById(userId);
 
-  if (
-    user.otp.expiresAt &&
-    user.otp.expiresAt < new Date()
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (!user.otp?.code) {
+      throw new BadRequestException('OTP not requested');
+    }
+
+    if (user.otp.code !== otp) {
+      throw new BadRequestException('Invalid OTP');
+    }
+
+    if (user.otp.expiresAt && user.otp.expiresAt < new Date()) {
+      throw new BadRequestException('OTP expired');
+    }
+
+    await this.userService.updateById(userId, {
+      otp: {
+        ...user.otp,
+        verified: true,
+      },
+    });
+
+    return {
+      success: true,
+      message: 'OTP verified successfully',
+    };
+  }
+  async getNotificationGmailData(
+    userId: string,
+    accountId?: string,
+    after?: Date,
   ) {
-    throw new BadRequestException(
-      'OTP expired',
+    const response = await this.getGoogleGmailMessages(
+      userId,
+      accountId,
+      undefined,
+      '50',
+      undefined,
+      undefined,
+      undefined,
+      after,
     );
+
+    return response?.data || [];
   }
 
-  await this.userService.updateById(userId, {
-    otp: {
-      ...user.otp,
-      verified: true,
-    },
-  });
+  async getNotificationCalendarData(
+    userId: string,
+    accountId?: string,
+    after?: Date,
+  ) {
+    const response = await this.getGoogleCalendarEvents(
+      userId,
+      accountId,
+      'today',
+      undefined,
+      undefined,
+      '50',
+      after,
+    );
 
-  return {
-    success: true,
-    message: 'OTP verified successfully',
-  };
-}
-async getNotificationGmailData(
-  userId: string,
-  accountId?: string,
-  after?: Date,
-) {
-  const response = await this.getGoogleGmailMessages(
-    userId,
-    accountId,
-    undefined,
-    '50',
-    undefined,
-    undefined,
-    undefined,
-    after,
-  );
-
-  return response?.data || [];
-}
-
-async getNotificationCalendarData(
-  userId: string,
-  accountId?: string,
-  after?: Date,
-) {
-  const response = await this.getGoogleCalendarEvents(
-    userId,
-    accountId,
-    'today',
-    undefined,
-    undefined,
-    '50',
-    after,
-  );
-
-  return response?.data || [];
-} 
+    return response?.data || [];
+  }
 }

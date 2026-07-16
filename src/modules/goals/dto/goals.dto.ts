@@ -20,7 +20,6 @@ import {
   RecruiterStatus,
 } from '../enums/goals.enum';
 
-
 export class CreateGoalDto {
   @IsString()
   title: string;
@@ -41,8 +40,6 @@ export class CreateGoalDto {
   @IsOptional()
   @IsObject()
   setupAnswers?: Record<string, any>;
-
-
 
   @IsOptional()
   @IsEnum(GoalType)
@@ -68,8 +65,6 @@ export class CreateGoalDto {
   milestones?: string[];
 }
 
-
-
 export class UpdateGoalDto {
   @IsOptional()
   @IsString()
@@ -84,12 +79,10 @@ export class UpdateGoalDto {
   targetDate?: string;
 }
 
-
 export class UpdateGoalStatusDto {
   @IsEnum(GoalStatus)
   status: GoalStatus;
 }
-
 
 export class CreateRecruiterDto {
   @IsString()
@@ -136,13 +129,10 @@ export class UpdateRecruiterDto {
   notes?: string;
 }
 
-
-
 export class GoalTemplateParamDto {
   @IsEnum(GoalTemplateKey)
   templateKey: GoalTemplateKey;
 }
-
 
 export class GoalIdParamDto {
   @IsMongoId()

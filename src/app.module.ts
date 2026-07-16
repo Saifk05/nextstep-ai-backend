@@ -12,17 +12,18 @@ import { ScheduleModule } from '@nestjs/schedule';
 import appConfig from './config/app.config';
 import databaseConfig from './config/database.config';
 import jwtConfig from './config/jwt.config';
-import { AiModule } from './common/ai/ai.module';
 
+import { AiModule } from './common/ai/ai.module';
 import { LoggerModule } from './common/logger/logger.module';
 import { AuthMiddleware } from './common/middleware/auth.middleware';
-import { GoalsModule } from './modules/goals/goals.module';
+
 import { AuthModule } from './modules/auth/auth.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
-import { UserModule } from './modules/user/user.module';
-import { TaskModule } from './modules/task/task.module';
+import { GoalsModule } from './modules/goals/goals.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { TaskModule } from './modules/task/task.module';
+import { UserModule } from './modules/user/user.module';
 
 @Module({
   imports: [
@@ -34,13 +35,13 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     ScheduleModule.forRoot(),
 
     MongooseModule.forRoot(databaseConfig().mongoUri),
+
     JwtModule.register({
       secret: jwtConfig().jwtSecret,
       signOptions: {
         expiresIn: jwtConfig().jwtExpiresIn as any,
       },
     }),
-    
 
     LoggerModule,
     AiModule,
@@ -64,6 +65,8 @@ export class AppModule implements NestModule {
         path: 'dashboard/overview',
         method: RequestMethod.GET,
       },
+
+      // User protected routes
       {
         path: 'users/profile',
         method: RequestMethod.GET,
@@ -91,7 +94,7 @@ export class AppModule implements NestModule {
         method: RequestMethod.ALL,
       },
       {
-        path: 'tasks/(.*)',
+        path: 'tasks/{*path}',
         method: RequestMethod.ALL,
       },
 
@@ -144,22 +147,24 @@ export class AppModule implements NestModule {
         path: 'integrations/google/gmail/summary',
         method: RequestMethod.GET,
       },
-      // Notifications protected routes
+
+      // Notification protected routes
       {
         path: 'notifications',
         method: RequestMethod.ALL,
       },
       {
-        path: 'notifications/(.*)',
+        path: 'notifications/{*path}',
         method: RequestMethod.ALL,
       },
-      // Goals protected routes
+
+      // Goal protected routes
       {
         path: 'goals',
         method: RequestMethod.ALL,
       },
       {
-        path: 'goals/(.*)',
+        path: 'goals/{*path}',
         method: RequestMethod.ALL,
       },
     );

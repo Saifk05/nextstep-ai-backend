@@ -1,15 +1,8 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 
-import {
-  Notification,
-  NotificationDocument,
-} from './notification.schema';
+import { Notification, NotificationDocument } from './notification.schema';
 
 import {
   NotificationDevice,
@@ -50,11 +43,7 @@ export class NotificationsService {
   }
 
   async registerDevice(userId: string, body: any) {
-    const {
-      token,
-      platform = 'ANDROID',
-      deviceName,
-    } = body;
+    const { token, platform = 'ANDROID', deviceName } = body;
 
     if (!token) {
       throw new BadRequestException('FCM token is required');
@@ -117,14 +106,12 @@ export class NotificationsService {
     const tokens = devices.map((device) => device.token);
 
     const safeData = Object.fromEntries(
-      Object.entries(data).map(([key, value]) => [
-        key,
-        String(value ?? ''),
-      ]),
+      Object.entries(data).map(([key, value]) => [key, String(value ?? '')]),
     );
 
-    const response =
-      await this.firebaseProvider.getMessaging().sendEachForMulticast({
+    const response = await this.firebaseProvider
+      .getMessaging()
+      .sendEachForMulticast({
         tokens,
         notification: {
           title,
@@ -165,10 +152,7 @@ export class NotificationsService {
   }
 
   async getAll(userId: string, cursor?: string, limit = '10') {
-    const limitNumber = Math.min(
-      Math.max(Number(limit) || 10, 1),
-      20,
-    );
+    const limitNumber = Math.min(Math.max(Number(limit) || 10, 1), 20);
 
     const query: any = {
       userId: new Types.ObjectId(userId),
