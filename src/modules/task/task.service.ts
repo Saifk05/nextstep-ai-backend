@@ -112,29 +112,127 @@ export class TaskService {
   }
 
 
-  async getTasks(
+  // async getTasks(
+  //   userId: string,
+  //   cursor?: string,
+  //   limit = 10,
+  // ) {
+  //   const pageLimit = Math.min(Math.max(Number(limit) || 10, 1), 50);
+
+  //   const sevenDaysAgo = new Date();
+  //   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  //   sevenDaysAgo.setHours(0, 0, 0, 0);
+
+  //   const filter: any = {
+  //     userId: new Types.ObjectId(userId),
+  //     isDeleted: false,
+  //     status: {
+  //       $in: [TaskStatus.PENDING, TaskStatus.MISSED],
+  //     },
+  //     dueDate: {
+  //       $gte: sevenDaysAgo,
+  //     },
+  //   };
+
+  //   if (cursor && Types.ObjectId.isValid(cursor)) {
+  //     filter._id = {
+  //       $lt: new Types.ObjectId(cursor),
+  //     };
+  //   }
+
+  //   const tasks = await this.taskModel
+  //     .find(filter)
+  //     .select(
+  //       '_id title description dueDate taskDate priority category status completionType minimumCompletionMinutes proofImage completedAt goalId goalPlanId goalActionKey goalActionType goalActionFrequency isGoalTask createdAt updatedAt',
+  //     )
+  //     .sort({ _id: -1 })
+  //     .limit(pageLimit + 1)
+  //     .lean();
+
+  //   const hasMore = tasks.length > pageLimit;
+
+  //   if (hasMore) {
+  //     tasks.pop();
+  //   }
+
+  //   return {
+  //     success: true,
+  //     message: 'Tasks fetched successfully',
+  //     data: tasks,
+  //     pagination: {
+  //       hasMore,
+  //       nextCursor: hasMore ? tasks[tasks.length - 1]?._id : null,
+  //     },
+  //   };
+  // }  
+
+    async getTasks(
     userId: string,
     cursor?: string,
     limit = 10,
+    status?: string,
+    date?: string,
   ) {
-    const pageLimit = Math.min(Math.max(Number(limit) || 10, 1), 50);
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid user id');
+    }
 
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    sevenDaysAgo.setHours(0, 0, 0, 0);
+    const pageLimit = Math.min(
+      Math.max(Number(limit) || 10, 1),
+      50,
+    );
 
     const filter: any = {
       userId: new Types.ObjectId(userId),
       isDeleted: false,
-      status: {
-        $in: [TaskStatus.PENDING, TaskStatus.MISSED],
-      },
-      dueDate: {
-        $gte: sevenDaysAgo,
-      },
     };
 
-    if (cursor && Types.ObjectId.isValid(cursor)) {
+    const normalizedStatus =
+      status?.trim().toUpperCase();
+
+    if (
+      normalizedStatus &&
+      normalizedStatus !== 'ALL'
+    ) {
+      const validStatuses =
+        Object.values(TaskStatus) as string[];
+
+      if (!validStatuses.includes(normalizedStatus)) {
+        throw new BadRequestException(
+          `Invalid status. Allowed values: ALL, ${validStatuses.join(', ')}`,
+        );
+      }
+
+      filter.status = normalizedStatus;
+    }
+
+    if (date?.trim()) {
+      const { start, end } =
+        this.getIndiaDateRange(date.trim());
+
+      filter.$or = [
+        {
+          taskDate: {
+            $gte: start,
+            $lt: end,
+          },
+        },
+        {
+          dueDate: {
+            $gte: start,
+            $lt: end,
+          },
+        },
+      ];
+    }
+
+    if (cursor) {
+      if (!Types.ObjectId.isValid(cursor)) {
+        throw new BadRequestException(
+          'Invalid task cursor',
+        );
+      }
+
       filter._id = {
         $lt: new Types.ObjectId(cursor),
       };
@@ -145,27 +243,42 @@ export class TaskService {
       .select(
         '_id title description dueDate taskDate priority category status completionType minimumCompletionMinutes proofImage completedAt goalId goalPlanId goalActionKey goalActionType goalActionFrequency isGoalTask createdAt updatedAt',
       )
-      .sort({ _id: -1 })
+      .sort({
+        _id: -1,
+      })
       .limit(pageLimit + 1)
       .lean();
 
-    const hasMore = tasks.length > pageLimit;
+    const hasMore =
+      tasks.length > pageLimit;
 
     if (hasMore) {
       tasks.pop();
     }
 
+    const nextCursor =
+      hasMore && tasks.length
+        ? tasks[tasks.length - 1]._id.toString()
+        : null;
+
     return {
       success: true,
       message: 'Tasks fetched successfully',
+
       data: tasks,
+
       pagination: {
+        limit: pageLimit,
         hasMore,
-        nextCursor: hasMore ? tasks[tasks.length - 1]?._id : null,
+        nextCursor,
+      },
+
+      filters: {
+        status: normalizedStatus || 'ALL',
+        date: date?.trim() || null,
       },
     };
-  }  
-
+  }
   async getTodayTasks(userId: string) {
     const { start, end } = this.getTodayRange();
 
@@ -800,6 +913,64 @@ export class TaskService {
     user.lastTaskCompletedDate = today;
 
     await user.save();
+  }
+
+  private getIndiaDateRange(date: string): {
+    start: Date;
+    end: Date;
+  } {
+    const datePattern =
+      /^\d{4}-\d{2}-\d{2}$/;
+
+    if (!datePattern.test(date)) {
+      throw new BadRequestException(
+        'Date must use YYYY-MM-DD format',
+      );
+    }
+
+    const [year, month, day] =
+      date.split('-').map(Number);
+
+    const validationDate = new Date(
+      Date.UTC(year, month - 1, day),
+    );
+
+    const isValidDate =
+      validationDate.getUTCFullYear() === year &&
+      validationDate.getUTCMonth() === month - 1 &&
+      validationDate.getUTCDate() === day;
+
+    if (!isValidDate) {
+      throw new BadRequestException(
+        'Invalid task date',
+      );
+    }
+
+    const indiaOffsetMilliseconds =
+      5.5 * 60 * 60 * 1000;
+
+    /*
+    * Converts midnight in India to UTC.
+    *
+    * Example:
+    * 15 July 00:00 IST
+    * becomes
+    * 14 July 18:30 UTC.
+    */
+    const start = new Date(
+      Date.UTC(year, month - 1, day) -
+        indiaOffsetMilliseconds,
+    );
+
+    const end = new Date(
+      start.getTime() +
+        24 * 60 * 60 * 1000,
+    );
+
+    return {
+      start,
+      end,
+    };
   }
 
   private getTodayRange() {

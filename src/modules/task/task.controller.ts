@@ -25,14 +25,18 @@ export class TaskController {
 
   @Get()
   getTasks(
-    @Req() req,
+    @Req() req: any,
     @Query('cursor') cursor?: string,
     @Query('limit') limit?: string,
+    @Query('status') status?: string,
+    @Query('date') date?: string,
   ) {
     return this.taskService.getTasks(
       req.user.userId,
       cursor,
       Number(limit) || 10,
+      status,
+      date,
     );
   }
 

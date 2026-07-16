@@ -17,16 +17,8 @@ import { GoalIntelligenceService } from './services/goal-intelligence.service';
 import { GoalIntelligenceCronService } from './services/goal-intelligence-cron.service';
 import { GoalGmailIntelligenceService } from './services/goal-gmail-intelligence.service';
 import { GoalFollowUpService } from './services/goal-follow-up.service';
-
-import {
-  Goal,
-  GoalSchema,
-} from './schemas/goal.schema';
-
-import {
-  Recruiter,
-  RecruiterSchema,
-} from './schemas/recruiter.schema';
+import { Goal, GoalSchema } from './schemas/goal.schema';
+import { Recruiter, RecruiterSchema } from './schemas/recruiter.schema';
 
 import {
   GoalPlan,
@@ -48,19 +40,9 @@ import {
   GoalApplicationSchema,
 } from './schemas/goal-application.schema';
 
-import {
-  GoalIntelligenceEvent,
-  GoalIntelligenceEventSchema,
-} from './schemas/goal-intelligence-event.schema';
+import { GoalIntelligenceEvent, GoalIntelligenceEventSchema } from './schemas/goal-intelligence-event.schema';
 
-/*
- * Change this import only if your User schema
- * is stored at another location.
- */
-import {
-  User,
-  UserSchema,
-} from '../user/user.model';
+import { User, UserSchema, } from '../user/user.model';
 
 import { IntegrationsModule } from '../integrations/integrations.module';
 import { TaskModule } from '../task/task.module';
