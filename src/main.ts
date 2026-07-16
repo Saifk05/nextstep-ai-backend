@@ -33,12 +33,15 @@ async function bootstrap() {
 
   const configService = app.get(ConfigService);
 
-  const port = configService.get<number>('port') || 3000;
+  const port =
+    configService.get<number>('PORT') ||
+    configService.get<number>('port') ||
+    3000;
 
   const nodeEnv =
     configService.get<string>('NODE_ENV') || 'development';
 
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
 
   const logger = app.get(WINSTON_MODULE_NEST_PROVIDER);
 
@@ -51,7 +54,6 @@ async function bootstrap() {
   logger.log(`📦 Environment: ${nodeEnv}`);
   logger.log(`🌐 Port: ${port}`);
   logger.log(`🔗 Base URL: ${baseUrl}`);
-  logger.log('🍃 MongoDB Connected');
 }
 
 bootstrap();
